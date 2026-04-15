@@ -5,7 +5,7 @@ import { UploadCloud, Users, RefreshCw, Shuffle, Eye, EyeOff, LogOut, FileText, 
 import { useNavigate } from 'react-router-dom';
 
 export default function AdminDashboard() {
-    const { logOut } = useAuth();
+    const { logOut, currentUser, apiFetch } = useAuth();
     const navigate = useNavigate();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -16,6 +16,8 @@ export default function AdminDashboard() {
     const fileInputRef = useRef();
 
     useEffect(() => {
+        if (!currentUser) return;
+
         fetchUsers();
         fetchSettings();
 
@@ -26,11 +28,11 @@ export default function AdminDashboard() {
         }, 15000);
 
         return () => clearInterval(interval);
-    }, []);
+    }, [currentUser]);
 
     const fetchSettings = async () => {
         try {
-            const res = await fetch('/api/settings');
+            const res = await apiFetch('/api/settings');
             const data = await res.json();
             if (res.ok && data.settings) {
                 setIsLedgerPublic(data.settings.isLedgerPublic || false);
@@ -42,7 +44,7 @@ export default function AdminDashboard() {
 
     const fetchUsers = async () => {
         try {
-            const res = await fetch('/api/users');
+            const res = await apiFetch('/api/users');
             const data = await res.json();
             if (res.ok && data.users) {
                 setUsers(data.users);
@@ -89,7 +91,7 @@ export default function AdminDashboard() {
                 persons.forEach(person => {
                     const getVal = (tag) => person.getElementsByTagName(tag)[0]?.textContent?.trim() || '';
                     const rawGrade = getVal('studentgrade');
-                    
+
                     newRoster.push({
                         firstName: getVal('first'),
                         lastName: getVal('last'),
@@ -106,7 +108,7 @@ export default function AdminDashboard() {
                     throw new Error("No students found in the uploaded file.");
                 }
 
-                const res = await fetch('/api/users', {
+                const res = await apiFetch('/api/users', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ users: newRoster })
@@ -123,7 +125,7 @@ export default function AdminDashboard() {
                 setError("Import failed: " + err.message);
             } finally {
                 setUploading(false);
-                e.target.value = ''; 
+                e.target.value = '';
             }
         };
         reader.onerror = () => {
@@ -136,7 +138,7 @@ export default function AdminDashboard() {
     const toggleStatus = async (user) => {
         try {
             const newStatus = user.status === 'alive' ? 'dead' : 'alive';
-            const res = await fetch('/api/users/target', {
+            const res = await apiFetch('/api/users/target', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: user._id, updates: { status: newStatus } })
@@ -152,11 +154,11 @@ export default function AdminDashboard() {
 
     const reassignTarget = async (user) => {
         const newTarget = prompt("Enter the new target's email address (or leave empty to remove):");
-        if (newTarget === null) return; 
+        if (newTarget === null) return;
 
         try {
             const targetEmail = newTarget.trim() === '' ? null : newTarget.trim();
-            const res = await fetch('/api/users/target', {
+            const res = await apiFetch('/api/users/target', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: user._id, updates: { targetEmail } })
@@ -175,10 +177,10 @@ export default function AdminDashboard() {
         }
 
         try {
-            const res = await fetch('/api/users/randomize', { method: 'POST' });
+            const res = await apiFetch('/api/users/randomize', { method: 'POST' });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Backend failed randomizing");
-            
+
             alert(`Successfully assigned targets to ${data.count} players!`);
             fetchUsers();
         } catch (err) {
@@ -191,10 +193,10 @@ export default function AdminDashboard() {
         if (!window.confirm("Are you sure you want to clear the entire ledger? This action cannot be undone. All kill events will be deleted forever.")) return;
 
         try {
-            const res = await fetch('/api/kills', { method: 'DELETE' });
+            const res = await apiFetch('/api/kills', { method: 'DELETE' });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Backend failed to clear ledger");
-            
+
             alert(`Ledger successfully cleared! (${data.count} events deleted)`);
         } catch (err) {
             console.error("Failed to clear ledger", err);
@@ -205,7 +207,7 @@ export default function AdminDashboard() {
     const reviveAll = async () => {
         if (!window.confirm("Are you sure you want to revive ALL players? Their status will all be set to 'alive'.")) return;
         try {
-            const res = await fetch('/api/users/revive', { method: 'POST' });
+            const res = await apiFetch('/api/users/revive', { method: 'POST' });
             if (!res.ok) throw new Error("Backend failed to revive players");
             alert("Successfully revived all players!");
             fetchUsers();
@@ -217,7 +219,7 @@ export default function AdminDashboard() {
 
     const toggleLedgerProtection = async () => {
         try {
-            const res = await fetch('/api/settings', {
+            const res = await apiFetch('/api/settings', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ isLedgerPublic: !isLedgerPublic })
@@ -252,7 +254,7 @@ export default function AdminDashboard() {
             <div className="max-w-6xl mx-auto">
                 <header className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
                     <div className="flex items-center gap-4 flex-wrap">
-                        <button 
+                        <button
                             onClick={() => fileInputRef.current.click()}
                             disabled={uploading}
                             className="flex items-center gap-2 px-4 py-2 bg-brand-blue hover:bg-brand-blue-hover text-white rounded-lg text-sm font-bold transition-all disabled:opacity-50"
@@ -262,7 +264,7 @@ export default function AdminDashboard() {
                         </button>
                         <input type="file" accept=".xml" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
 
-                        <button 
+                        <button
                             onClick={assignTargetsRandomly}
                             className="flex items-center gap-2 px-4 py-2 bg-brand-blue hover:bg-brand-blue-hover text-white rounded-lg text-sm font-bold transition-all"
                         >
@@ -270,7 +272,7 @@ export default function AdminDashboard() {
                             Randomize Targets
                         </button>
 
-                        <button 
+                        <button
                             onClick={toggleLedgerProtection}
                             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${isLedgerPublic ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
                         >
@@ -278,7 +280,7 @@ export default function AdminDashboard() {
                             {isLedgerPublic ? "Unprotect Ledger: ON" : "Unprotect Ledger: OFF"}
                         </button>
 
-                        <button 
+                        <button
                             onClick={() => navigate('/ledger')}
                             className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-bold transition-all border border-slate-200"
                         >
@@ -286,7 +288,7 @@ export default function AdminDashboard() {
                             View Ledger
                         </button>
 
-                        <button 
+                        <button
                             onClick={clearLedger}
                             className="flex items-center gap-2 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-bold transition-all border border-red-200"
                         >
@@ -294,7 +296,7 @@ export default function AdminDashboard() {
                             Clear Ledger
                         </button>
 
-                        <button 
+                        <button
                             onClick={reviveAll}
                             className="flex items-center gap-2 px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg text-sm font-bold transition-all border border-green-200"
                         >
@@ -302,7 +304,7 @@ export default function AdminDashboard() {
                             Revive All
                         </button>
 
-                        <button 
+                        <button
                             onClick={() => navigate('/dashboard')}
                             className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-bold transition-all border border-slate-200"
                         >

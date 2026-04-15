@@ -4,7 +4,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { ShieldAlert, Crosshair, ArrowLeft, Clock, Download, Target } from 'lucide-react';
 
 export default function Ledger() {
-  const { userData, loading: authLoading } = useAuth();
+  const { userData, loading: authLoading, apiFetch } = useAuth();
   const navigate = useNavigate();
   const [events, setEvents] = useState([]);
   const [isPublic, setIsPublic] = useState(false);
@@ -13,11 +13,12 @@ export default function Ledger() {
 
   const fetchLedgerData = async () => {
     try {
+      const fetcher = userData ? apiFetch : fetch;
       const [settingsRes, killsRes] = await Promise.all([
         fetch('/api/settings'),
-        fetch('/api/kills')
+        fetcher('/api/kills')
       ]);
-
+      
       if (settingsRes.ok) {
         const data = await settingsRes.json();
         const publicState = data.settings && data.settings.isLedgerPublic === true;

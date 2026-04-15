@@ -1,4 +1,5 @@
 import { getDb } from './lib/db.js';
+import { authenticateAdmin } from './lib/verifyAuth.js';
 
 export default async function handler(req, res) {
   const db = await getDb();
@@ -14,6 +15,12 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'PUT') {
+    try {
+      await authenticateAdmin(req);
+    } catch (err) {
+      return res.status(401).json({ error: err.message });
+    }
+
     try {
       const updates = req.body;
       await settingsCollection.updateOne(

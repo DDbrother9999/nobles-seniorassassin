@@ -1,13 +1,21 @@
 import { getDb } from '../lib/db.js';
+import { authenticateRequest } from '../lib/verifyAuth.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { email } = req.body;
+  let email;
+  try {
+    const decodedToken = await authenticateRequest(req);
+    email = decodedToken.email;
+  } catch (err) {
+    return res.status(401).json({ error: err.message });
+  }
+
   if (!email) {
-    return res.status(400).json({ error: 'Email is required' });
+    return res.status(400).json({ error: 'Email is missing from verified token' });
   }
 
   try {
@@ -34,6 +42,17 @@ export default async function handler(req, res) {
     user.email = user._id;
     if (isAdmin) {
       user.isAdmin = true;
+    }
+
+    if (user.targetEmail) {
+      const targetUser = await db.collection('users').findOne({ _id: user.targetEmail });
+      if (targetUser) {
+        user.targetProfile = {
+          firstName: targetUser.firstName,
+          lastName: targetUser.lastName,
+          studentId: targetUser.studentId
+        };
+      }
     }
 
     return res.status(200).json({ user });

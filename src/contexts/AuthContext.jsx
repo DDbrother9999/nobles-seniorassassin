@@ -12,9 +12,13 @@ export const AuthProvider = ({ children }) => {
 
   const fetchUserData = async (user) => {
     try {
+      const token = await user.getIdToken();
       const response = await fetch('/api/users/auth', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ email: user.email })
       });
       if (!response.ok) {
@@ -33,7 +37,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
-      
+
       const data = await fetchUserData(user);
       if (!data) {
         await signOut(auth);
@@ -57,6 +61,20 @@ export const AuthProvider = ({ children }) => {
       const data = await fetchUserData(currentUser);
       if (data) setUserData(data);
     }
+  };
+
+  const apiFetch = async (url, options = {}) => {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Not authenticated');
+    const token = await user.getIdToken();
+
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...options.headers,
+        Authorization: `Bearer ${token}`
+      }
+    });
   };
 
   useEffect(() => {
@@ -87,7 +105,8 @@ export const AuthProvider = ({ children }) => {
     loading,
     loginWithGoogle,
     logOut,
-    reloadUserData
+    reloadUserData,
+    apiFetch
   };
 
   return (

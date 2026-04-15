@@ -1,4 +1,5 @@
 import { getDb } from '../lib/db.js';
+import { authenticateAdmin } from '../lib/verifyAuth.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -6,6 +7,12 @@ export default async function handler(req, res) {
   }
 
   try {
+    try {
+      await authenticateAdmin(req);
+    } catch (err) {
+      return res.status(401).json({ error: err.message });
+    }
+
     const db = await getDb();
     const result = await db.collection('users').updateMany(
       {},

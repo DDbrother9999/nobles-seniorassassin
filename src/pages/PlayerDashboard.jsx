@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Skull, Target, AlertTriangle, LogOut } from 'lucide-react';
 
 export default function PlayerDashboard() {
-  const { userData, logOut, reloadUserData } = useAuth();
+  const { userData, logOut, reloadUserData, apiFetch } = useAuth();
   const [targetData, setTargetData] = useState(null);
   const [loadingTarget, setLoadingTarget] = useState(true);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -21,29 +21,18 @@ export default function PlayerDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch target automatically when userData updates (from the interval above)
+  // Set target automatically when userData updates (from the interval above)
   useEffect(() => {
-    async function fetchTarget() {
-      if (userData?.status === 'alive' && userData.targetEmail) {
-        try {
-          const res = await fetch('/api/users');
-          const data = await res.json();
-          if (res.ok && data.users) {
-            const tData = data.users.find(u => u._id === userData.targetEmail);
-            if (tData) setTargetData(tData);
-          }
-        } catch (e) {
-          console.error("Failed to fetch target data", e);
-        }
-      }
-      setLoadingTarget(false);
-    }
-
-    if (userData && userData.status === 'alive') {
-      fetchTarget();
+    if (userData && userData.status === 'alive' && userData.targetProfile) {
+      setTargetData({
+        _id: userData.targetEmail,
+        email: userData.targetEmail,
+        ...userData.targetProfile
+      });
     } else {
-      setLoadingTarget(false);
+      setTargetData(null);
     }
+    setLoadingTarget(false);
   }, [userData]);
 
   const handleEliminate = async () => {
@@ -51,37 +40,21 @@ export default function PlayerDashboard() {
     try {
       setEliminating(true);
 
-      // Fetch new target's info
-      let newTargetName = "None";
-      let newTargetEmail = targetData.targetEmail || null;
-
-      if (newTargetEmail) {
-        const res = await fetch('/api/users');
-        const data = await res.json();
-        if (res.ok && data.users) {
-            const ntData = data.users.find(u => u._id === newTargetEmail);
-            if (ntData) newTargetName = `${ntData.firstName} ${ntData.lastName}`;
-        }
-      }
-
       const killEvent = {
         killerEmail: userData.email,
         killerName: `${userData.firstName} ${userData.lastName}`,
         victimEmail: targetData.email,
         victimName: `${targetData.firstName} ${targetData.lastName}`,
-        newTargetEmail: newTargetEmail,
-        newTargetName: newTargetName,
         timestamp: new Date().toISOString()
       };
 
-      const res = await fetch('/api/kills', {
+      const res = await apiFetch('/api/kills', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-           targetId: targetData._id,
-           userId: userData._id,
-           newTargetEmail,
-           killEvent
+          targetId: targetData._id,
+          userId: userData._id,
+          killEvent
         })
       });
 
