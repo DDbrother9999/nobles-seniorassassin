@@ -1,12 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { auth, db, googleProvider } from '../firebase';
+import { auth, googleProvider } from '../firebase';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
 
 const AuthContext = createContext();
 export const useAuth = () => useContext(AuthContext);
-
-const ADMIN_EMAIL = 'dyin27@nobles.edu';
 
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
@@ -14,25 +11,22 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   const fetchUserData = async (user) => {
-    const userDocRef = doc(db, 'users', user.email);
-    const docSnap = await getDoc(userDocRef);
-    
-    if (!docSnap.exists() && user.email !== ADMIN_EMAIL) {
-      return null; // Deny
+    try {
+      const response = await fetch('/api/users/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email })
+      });
+      if (!response.ok) {
+        if (response.status === 403) return null; // Denied by backend
+        throw new Error('Failed to fetch user auth profile from backend');
+      }
+      const json = await response.json();
+      return json.user;
+    } catch (err) {
+      console.error(err);
+      return null;
     }
-    
-    let data = docSnap.exists() ? docSnap.data() : { 
-      firstName: 'Admin', 
-      lastName: 'Account',
-      status: 'alive',
-      targetEmail: null
-    };
-    
-    if (user.email === ADMIN_EMAIL) {
-      data.isAdmin = true;
-    }
-    
-    return { ...data, email: user.email };
   };
 
   const loginWithGoogle = async () => {

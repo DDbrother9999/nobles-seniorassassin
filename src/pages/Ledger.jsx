@@ -1,6 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { db } from '../firebase';
-import { collection, query, orderBy, onSnapshot, doc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { ShieldAlert, Crosshair, ArrowLeft, Clock, Download, Target } from 'lucide-react';
@@ -13,38 +11,43 @@ export default function Ledger() {
   const [loading, setLoading] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
 
-  useEffect(() => {
-    // First, check global settings
-    const unsubSettings = onSnapshot(doc(db, 'settings', 'game'), (docSnap) => {
-      const publicState = docSnap.exists() ? docSnap.data().isLedgerPublic === true : false;
-      setIsPublic(publicState);
+  const fetchLedgerData = async () => {
+    try {
+      const [settingsRes, killsRes] = await Promise.all([
+        fetch('/api/settings'),
+        fetch('/api/kills')
+      ]);
 
-      // If it's not public, and user is not admin, deny access
-      if (!publicState && (!userData || !userData.isAdmin)) {
-        setAccessDenied(true);
-      } else {
-        setAccessDenied(false);
+      if (settingsRes.ok) {
+        const data = await settingsRes.json();
+        const publicState = data.settings && data.settings.isLedgerPublic === true;
+        setIsPublic(publicState);
+
+        // If it's not public, and user is not admin, deny access
+        if (!publicState && (!userData || !userData.isAdmin)) {
+          setAccessDenied(true);
+        } else {
+          setAccessDenied(false);
+        }
       }
-      setLoading(false);
-    });
 
-    return () => unsubSettings();
-  }, [userData]);
+      if (killsRes.ok) {
+        const data = await killsRes.json();
+        setEvents(data.kills || []);
+      }
+    } catch (e) {
+      console.error("Failed to fetch ledger data", e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (accessDenied || loading) return;
-
-    const q = query(collection(db, 'kill_events'), orderBy('timestamp', 'desc'));
-    const unsubEvents = onSnapshot(q, (snapshot) => {
-      const fetched = [];
-      snapshot.forEach(doc => {
-        fetched.push({ _id: doc.id, ...doc.data() });
-      });
-      setEvents(fetched);
-    });
-
-    return () => unsubEvents();
-  }, [accessDenied, loading]);
+    if (authLoading) return;
+    fetchLedgerData();
+    const interval = setInterval(fetchLedgerData, 15000);
+    return () => clearInterval(interval);
+  }, [userData, authLoading]);
 
   const handleExportJSON = () => {
     const dataStr = JSON.stringify(events, null, 2);

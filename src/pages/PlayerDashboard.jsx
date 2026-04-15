@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { db } from '../firebase';
-import { doc, getDoc, writeBatch, collection } from 'firebase/firestore';
 import { Skull, Target, AlertTriangle, LogOut } from 'lucide-react';
 
 export default function PlayerDashboard() {
@@ -14,10 +12,15 @@ export default function PlayerDashboard() {
   useEffect(() => {
     async function fetchTarget() {
       if (userData?.status === 'alive' && userData.targetEmail) {
-        const targetRef = doc(db, 'users', userData.targetEmail);
-        const targetSnap = await getDoc(targetRef);
-        if (targetSnap.exists()) {
-          setTargetData(targetSnap.data());
+        try {
+          const res = await fetch('/api/users');
+          const data = await res.json();
+          if (res.ok && data.users) {
+            const tData = data.users.find(u => u._id === userData.targetEmail);
+            if (tData) setTargetData(tData);
+          }
+        } catch (e) {
+          console.error("Failed to fetch target data", e);
         }
       }
       setLoadingTarget(false);
@@ -39,27 +42,15 @@ export default function PlayerDashboard() {
       let newTargetEmail = targetData.targetEmail || null;
 
       if (newTargetEmail) {
-        const ntRef = doc(db, 'users', newTargetEmail);
-        const ntSnap = await getDoc(ntRef);
-        if (ntSnap.exists()) {
-          const ntData = ntSnap.data();
-          newTargetName = `${ntData.firstName} ${ntData.lastName}`;
+        const res = await fetch('/api/users');
+        const data = await res.json();
+        if (res.ok && data.users) {
+            const ntData = data.users.find(u => u._id === newTargetEmail);
+            if (ntData) newTargetName = `${ntData.firstName} ${ntData.lastName}`;
         }
       }
 
-      const batch = writeBatch(db);
-
-      // Set target's status to dead and wipe their target
-      const targetRef = doc(db, 'users', targetData.email);
-      batch.update(targetRef, { status: 'dead', targetEmail: null });
-
-      // Inherit target's target
-      const userRef = doc(db, 'users', userData.email);
-      batch.update(userRef, { targetEmail: newTargetEmail });
-
-      // Log kill event
-      const killEventRef = doc(collection(db, 'kill_events'));
-      batch.set(killEventRef, {
+      const killEvent = {
         killerEmail: userData.email,
         killerName: `${userData.firstName} ${userData.lastName}`,
         victimEmail: targetData.email,
@@ -67,9 +58,23 @@ export default function PlayerDashboard() {
         newTargetEmail: newTargetEmail,
         newTargetName: newTargetName,
         timestamp: new Date().toISOString()
+      };
+
+      const res = await fetch('/api/kills', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+           targetId: targetData._id,
+           userId: userData._id,
+           newTargetEmail,
+           killEvent
+        })
       });
 
-      await batch.commit();
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Backend failed to log elimination");
+      }
 
       // Refresh
       setTargetData(null);

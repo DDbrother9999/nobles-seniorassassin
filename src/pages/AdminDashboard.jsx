@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db } from '../firebase';
-import { collection, getDocs, writeBatch, doc, updateDoc, onSnapshot, setDoc } from 'firebase/firestore';
+
 import { useAuth } from '../contexts/AuthContext';
 import { UploadCloud, Users, RefreshCw, Shuffle, Eye, EyeOff, LogOut, FileText, User, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -18,25 +17,38 @@ export default function AdminDashboard() {
 
     useEffect(() => {
         fetchUsers();
-        
-        // Listen to global game settings for ledger
-        const unsubSettings = onSnapshot(doc(db, 'settings', 'game'), (docSnap) => {
-            if (docSnap.exists()) {
-                setIsLedgerPublic(docSnap.data().isLedgerPublic || false);
-            }
-        });
+        fetchSettings();
 
-        return () => unsubSettings();
+        // Polling to make up for lost firestore web sockets
+        const interval = setInterval(() => {
+            fetchUsers();
+            fetchSettings();
+        }, 15000);
+
+        return () => clearInterval(interval);
     }, []);
+
+    const fetchSettings = async () => {
+        try {
+            const res = await fetch('/api/settings');
+            const data = await res.json();
+            if (res.ok && data.settings) {
+                setIsLedgerPublic(data.settings.isLedgerPublic || false);
+            }
+        } catch (e) {
+            console.error("Failed to fetch settings", e);
+        }
+    };
 
     const fetchUsers = async () => {
         try {
-            const querySnapshot = await getDocs(collection(db, 'users'));
-            const fetched = [];
-            querySnapshot.forEach((doc) => {
-                fetched.push({ _id: doc.id, ...doc.data() });
-            });
-            setUsers(fetched);
+            const res = await fetch('/api/users');
+            const data = await res.json();
+            if (res.ok && data.users) {
+                setUsers(data.users);
+            } else {
+                throw new Error("Failed to load users array from API");
+            }
         } catch (err) {
             console.error(err);
             setError("Failed to fetch registered users");
@@ -94,17 +106,17 @@ export default function AdminDashboard() {
                     throw new Error("No students found in the uploaded file.");
                 }
 
-                const batch = writeBatch(db);
-                newRoster.forEach(user => {
-                    if (user.email) {
-                        const userRef = doc(db, 'users', user.email);
-                        batch.set(userRef, user);
-                    }
+                const res = await fetch('/api/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ users: newRoster })
                 });
 
-                await batch.commit();
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || "API write failed");
+
                 console.log("Successfully logged users:", newRoster.map(u => `${u.firstName} ${u.lastName} (ID: ${u.studentId})`));
-                alert(`Successfully imported ${newRoster.length} players!`);
+                alert(data.message || `Successfully imported ${newRoster.length} players!`);
                 fetchUsers();
             } catch (err) {
                 console.error(err);
@@ -124,9 +136,13 @@ export default function AdminDashboard() {
     const toggleStatus = async (user) => {
         try {
             const newStatus = user.status === 'alive' ? 'dead' : 'alive';
-            const userRef = doc(db, 'users', user._id);
-            // Updating status without touching target. (Target becomes null properly only during real kills)
-            await updateDoc(userRef, { status: newStatus });
+            const res = await fetch('/api/users/target', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: user._id, updates: { status: newStatus } })
+            });
+
+            if (!res.ok) throw new Error("Backend failed to update status");
             fetchUsers();
         } catch (err) {
             console.error("Failed to update status", err);
@@ -139,8 +155,13 @@ export default function AdminDashboard() {
         if (newTarget === null) return; 
 
         try {
-            const userRef = doc(db, 'users', user._id);
-            await updateDoc(userRef, { targetEmail: newTarget.trim() === '' ? null : newTarget.trim() });
+            const targetEmail = newTarget.trim() === '' ? null : newTarget.trim();
+            const res = await fetch('/api/users/target', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: user._id, updates: { targetEmail } })
+            });
+            if (!res.ok) throw new Error("Backend failed to assign target");
             fetchUsers();
         } catch (err) {
             console.error("Failed to assign target", err);
@@ -153,29 +174,12 @@ export default function AdminDashboard() {
             return;
         }
 
-        const aliveUsers = users.filter(u => u.status === 'alive');
-        if (aliveUsers.length < 2) {
-            alert("Not enough alive players to assign targets.");
-            return;
-        }
-
-        let shuffled = [...aliveUsers];
-        for (let i = shuffled.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-        }
-
         try {
-            const batch = writeBatch(db);
-            for (let i = 0; i < shuffled.length; i++) {
-                const currentUser = shuffled[i];
-                const targetUser = i === shuffled.length - 1 ? shuffled[0] : shuffled[i + 1];
-                const userRef = doc(db, 'users', currentUser._id);
-                batch.update(userRef, { targetEmail: targetUser.email });
-            }
-
-            await batch.commit();
-            alert(`Successfully assigned targets to ${shuffled.length} players!`);
+            const res = await fetch('/api/users/randomize', { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Backend failed randomizing");
+            
+            alert(`Successfully assigned targets to ${data.count} players!`);
             fetchUsers();
         } catch (err) {
             console.error("Failed to randomize targets", err);
@@ -187,20 +191,11 @@ export default function AdminDashboard() {
         if (!window.confirm("Are you sure you want to clear the entire ledger? This action cannot be undone. All kill events will be deleted forever.")) return;
 
         try {
-            const eventsSnapshot = await getDocs(collection(db, 'kill_events'));
-            if (eventsSnapshot.empty) {
-                alert("Ledger is already empty.");
-                return;
-            }
+            const res = await fetch('/api/kills', { method: 'DELETE' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Backend failed to clear ledger");
             
-            const batch = writeBatch(db);
-            let count = 0;
-            eventsSnapshot.forEach((docSnap) => {
-                batch.delete(docSnap.ref);
-                count++;
-            });
-            await batch.commit();
-            alert(`Ledger successfully cleared! (${count} events deleted)`);
+            alert(`Ledger successfully cleared! (${data.count} events deleted)`);
         } catch (err) {
             console.error("Failed to clear ledger", err);
             alert("Failed to clear ledger: " + err.message);
@@ -209,7 +204,13 @@ export default function AdminDashboard() {
 
     const toggleLedgerProtection = async () => {
         try {
-            await setDoc(doc(db, 'settings', 'game'), { isLedgerPublic: !isLedgerPublic }, { merge: true });
+            const res = await fetch('/api/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isLedgerPublic: !isLedgerPublic })
+            });
+            if (!res.ok) throw new Error("Failed to update on backend");
+            setIsLedgerPublic(!isLedgerPublic);
         } catch (err) {
             console.error("Failed to update ledger protection", err);
             alert("Failed to toggle protection");
