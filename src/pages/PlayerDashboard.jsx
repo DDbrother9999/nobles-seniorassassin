@@ -10,6 +10,19 @@ export default function PlayerDashboard() {
   const [eliminating, setEliminating] = useState(false);
 
   useEffect(() => {
+    // Force a fresh reload of the user profile immediately on mount
+    reloadUserData();
+
+    // Set up continuous polling so it updates even if left open
+    const interval = setInterval(() => {
+      reloadUserData();
+    }, 15000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fetch target automatically when userData updates (from the interval above)
+  useEffect(() => {
     async function fetchTarget() {
       if (userData?.status === 'alive' && userData.targetEmail) {
         try {
@@ -25,6 +38,7 @@ export default function PlayerDashboard() {
       }
       setLoadingTarget(false);
     }
+
     if (userData && userData.status === 'alive') {
       fetchTarget();
     } else {

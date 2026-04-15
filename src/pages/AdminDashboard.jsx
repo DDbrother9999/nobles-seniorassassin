@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 import { useAuth } from '../contexts/AuthContext';
-import { UploadCloud, Users, RefreshCw, Shuffle, Eye, EyeOff, LogOut, FileText, User, Trash2 } from 'lucide-react';
+import { UploadCloud, Users, RefreshCw, Shuffle, Eye, EyeOff, LogOut, FileText, User, Trash2, Heart } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function AdminDashboard() {
@@ -202,6 +202,19 @@ export default function AdminDashboard() {
         }
     };
 
+    const reviveAll = async () => {
+        if (!window.confirm("Are you sure you want to revive ALL players? Their status will all be set to 'alive'.")) return;
+        try {
+            const res = await fetch('/api/users/revive', { method: 'POST' });
+            if (!res.ok) throw new Error("Backend failed to revive players");
+            alert("Successfully revived all players!");
+            fetchUsers();
+        } catch (err) {
+            console.error(err);
+            alert("Failed to revive players");
+        }
+    };
+
     const toggleLedgerProtection = async () => {
         try {
             const res = await fetch('/api/settings', {
@@ -279,6 +292,14 @@ export default function AdminDashboard() {
                         >
                             <Trash2 className="w-4 h-4" />
                             Clear Ledger
+                        </button>
+
+                        <button 
+                            onClick={reviveAll}
+                            className="flex items-center gap-2 px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg text-sm font-bold transition-all border border-green-200"
+                        >
+                            <Heart className="w-4 h-4" />
+                            Revive All
                         </button>
 
                         <button 
