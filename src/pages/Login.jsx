@@ -1,30 +1,35 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Crosshair, AlertCircle } from 'lucide-react';
 
 export default function Login() {
-  const { loginWithGoogle } = useAuth();
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const { loginWithGoogle, userData, authError, loading } = useAuth();
+  const [redirecting, setRedirecting] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = async () => {
-    try {
-      setError('');
-      setLoading(true);
-      const userData = await loginWithGoogle();
+  // After a successful redirect, onAuthStateChanged sets userData.
+  // Navigate as soon as it's available.
+  useEffect(() => {
+    if (userData) {
       if (userData.isAdmin) {
         navigate('/admin');
       } else {
         navigate('/dashboard');
       }
-    } catch (err) {
-      setError(err.message || 'Failed to sign in.');
-    } finally {
-      setLoading(false);
     }
+  }, [userData, navigate]);
+
+  const handleLogin = () => {
+    setRedirecting(true);
+    // This navigates the entire page to Google.
+    // When Google finishes (including any account switch), it redirects
+    // back here, getRedirectResult fires, and onAuthStateChanged sets userData.
+    loginWithGoogle();
   };
+
+  // Show error from context (e.g. "not on roster" after redirect)
+  const displayError = authError;
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
@@ -41,20 +46,20 @@ export default function Login() {
           <p className="text-slate-500 mt-2 text-sm uppercase tracking-widest font-semibold">Dashboard Portal</p>
         </div>
 
-        {error && (
+        {displayError && (
           <div className="bg-red-500/10 border border-brand-red text-red-200 p-4 rounded-lg mb-6 flex gap-3 text-sm animate-pulse-once">
             <AlertCircle className="w-5 h-5 flex-shrink-0" />
-            <p>{error}</p>
+            <p>{displayError}</p>
           </div>
         )}
 
         <div className="relative z-10">
           <button
             onClick={handleLogin}
-            disabled={loading}
+            disabled={redirecting}
             className="w-full bg-brand-blue hover:bg-brand-blue-hover text-white font-bold py-3.5 px-4 rounded-xl transition-all active:scale-95 disabled:opacity-70 disabled:hover:bg-brand-blue disabled:active:scale-100 flex items-center justify-center gap-3 shadow-lg shadow-brand-blue/20"
           >
-            {loading ? (
+            {redirecting ? (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
               <>
@@ -68,6 +73,9 @@ export default function Login() {
               </>
             )}
           </button>
+          {redirecting && (
+            <p className="text-center text-slate-400 text-xs mt-3">Redirecting to Google…</p>
+          )}
         </div>
       </div>
     </div>

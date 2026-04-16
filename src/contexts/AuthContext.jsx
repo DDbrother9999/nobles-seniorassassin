@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { auth, googleProvider } from '../firebase';
-import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
+import { signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from 'firebase/auth';
 
 const AuthContext = createContext();
 export const useAuth = () => useContext(AuthContext);
@@ -9,10 +9,11 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState(null);
 
-  const fetchUserData = async (user) => {
+  const fetchUserData = useCallback(async (user) => {
     try {
-      const token = await user.getIdToken();
+      const token = await user.getIdToken(true);
       const response = await fetch('/api/users/auth', {
         method: 'POST',
         headers: {
@@ -21,44 +22,41 @@ export const AuthProvider = ({ children }) => {
         },
         body: JSON.stringify({ email: user.email })
       });
+
       if (!response.ok) {
-        if (response.status === 403) return null; // Denied by backend
-        throw new Error('Failed to fetch user auth profile from backend');
+        console.warn(`Backend auth failed: ${response.status}`);
+        return null;
       }
       const json = await response.json();
       return json.user;
     } catch (err) {
-      console.error(err);
+      console.error("Fetch user data error:", err);
       return null;
     }
+  }, []);
+
+  // Kicks off a full-page redirect to Google.
+  // On mobile this is the ONLY flow that survives account switching.
+  // The result is picked up by getRedirectResult when the page reloads.
+  const loginWithGoogle = () => {
+    setAuthError(null);
+    return signInWithRedirect(auth, googleProvider);
   };
 
-  const loginWithGoogle = async () => {
+  const logOut = async () => {
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-
-      const data = await fetchUserData(user);
-      if (!data) {
-        await signOut(auth);
-        throw new Error('Access Denied: You are not on the official roster.');
-      }
-      setUserData(data);
-      return data;
+      await signOut(auth);
+      setUserData(null);
+      setCurrentUser(null);
+      setAuthError(null);
     } catch (error) {
-      throw error;
+      console.error("Logout Error:", error);
     }
   };
 
-  const logOut = () => {
-    setUserData(null);
-    return signOut(auth);
-  };
-
-  // Reload user data manually (e.g. after reporting a kill)
   const reloadUserData = async () => {
-    if (currentUser) {
-      const data = await fetchUserData(currentUser);
+    if (auth.currentUser) {
+      const data = await fetchUserData(auth.currentUser);
       if (data) setUserData(data);
     }
   };
@@ -72,20 +70,51 @@ export const AuthProvider = ({ children }) => {
       ...options,
       headers: {
         ...options.headers,
-        Authorization: `Bearer ${token}`
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
       }
     });
   };
 
   useEffect(() => {
+    let isMounted = true;
+
+    // 1) Check if we just returned from a redirect sign-in.
+    //    This fires ONCE after the page reloads from Google's redirect.
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (!isMounted) return;
+        if (result?.user) {
+          const data = await fetchUserData(result.user);
+          if (!data) {
+            // Signed into Google but not on the roster — sign them out.
+            await signOut(auth);
+            setAuthError('Access Denied: You are not on the official roster.');
+          }
+          // If data exists, onAuthStateChanged below will handle setting state.
+        }
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        console.error('Redirect sign-in error:', err);
+        // Don't surface user-cancellation errors.
+        if (err.code !== 'auth/popup-closed-by-user' &&
+            err.code !== 'auth/cancelled-popup-request') {
+          setAuthError(err.message || 'Sign-in failed. Please try again.');
+        }
+      });
+
+    // 2) Primary auth state listener — fires on initial load AND after redirect sign-in.
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!isMounted) return;
       if (user) {
         const data = await fetchUserData(user);
         if (data) {
           setUserData(data);
           setCurrentUser(user);
         } else {
-          await signOut(auth);
+          // Firebase-authed but not on roster. Don't call signOut here
+          // to avoid loops — getRedirectResult handles that case.
           setCurrentUser(null);
           setUserData(null);
         }
@@ -96,13 +125,17 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     });
 
-    return unsubscribe;
-  }, []);
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [fetchUserData]);
 
   const value = {
     currentUser,
     userData,
     loading,
+    authError,
     loginWithGoogle,
     logOut,
     reloadUserData,
