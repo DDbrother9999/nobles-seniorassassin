@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import PlayerDashboard from './pages/PlayerDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import Ledger from './pages/Ledger';
+import SafetyItems from './pages/SafetyItems';
 
 function AppRoutes() {
   const { userData } = useAuth();
@@ -16,6 +17,7 @@ function AppRoutes() {
       <Route path="/dashboard" element={<ProtectedRoute><PlayerDashboard /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute requireAdmin={true}><AdminDashboard /></ProtectedRoute>} />
       <Route path="/ledger" element={<Ledger />} />
+      <Route path="/safety" element={<ProtectedRoute><SafetyItems /></ProtectedRoute>} />
     </Routes>
   );
 }

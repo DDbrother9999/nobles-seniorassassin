@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-
 import { useAuth } from '../contexts/AuthContext';
-import { UploadCloud, Users, RefreshCw, Shuffle, Eye, EyeOff, LogOut, FileText, User, Trash2, Heart } from 'lucide-react';
+import { UploadCloud, Users, RefreshCw, Shuffle, Eye, EyeOff, LogOut, FileText, User, Trash2, Heart, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function AdminDashboard() {
@@ -13,6 +12,8 @@ export default function AdminDashboard() {
     const [error, setError] = useState(null);
     const [isLedgerPublic, setIsLedgerPublic] = useState(false);
     const [sortConfig, setSortConfig] = useState({ key: 'email', direction: 'asc' });
+    const [pendingEliminations, setPendingEliminations] = useState([]);
+    const [actionLoading, setActionLoading] = useState(null); // id of row being actioned
     const fileInputRef = useRef();
 
     useEffect(() => {
@@ -20,15 +21,47 @@ export default function AdminDashboard() {
 
         fetchUsers();
         fetchSettings();
+        fetchPendingEliminations();
 
-        // Polling to make up for lost firestore web sockets
         const interval = setInterval(() => {
             fetchUsers();
             fetchSettings();
+            fetchPendingEliminations();
         }, 15000);
 
         return () => clearInterval(interval);
     }, [currentUser]);
+
+    const fetchPendingEliminations = async () => {
+        try {
+            const res = await apiFetch('/api/eliminations');
+            const data = await res.json();
+            if (res.ok) setPendingEliminations(data.eliminations || []);
+        } catch (e) {
+            console.error('Failed to fetch pending eliminations', e);
+        }
+    };
+
+    const handleVerdict = async (id, action) => {
+        setActionLoading(id);
+        try {
+            const res = await apiFetch('/api/eliminations', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, action }),
+            });
+            if (!res.ok) {
+                const d = await res.json();
+                throw new Error(d.error || 'Action failed');
+            }
+            await fetchPendingEliminations();
+            if (action === 'approve') await fetchUsers(); // refresh roster on approval
+        } catch (err) {
+            alert('Failed: ' + err.message);
+        } finally {
+            setActionLoading(null);
+        }
+    };
 
     const fetchSettings = async () => {
         try {
@@ -324,6 +357,59 @@ export default function AdminDashboard() {
                     </div>
                 )}
 
+                {/* ── Verification Queue ──────────────────────────────────── */}
+                {pendingEliminations.length > 0 && (
+                    <div className="mb-8 bg-white rounded-2xl border border-amber-200 shadow-xl overflow-hidden">
+                        <div className="flex items-center gap-3 p-6 border-b border-amber-100 bg-amber-50">
+                            <Clock className="w-5 h-5 text-amber-500" />
+                            <h2 className="text-lg font-bold text-amber-700">Verification Queue</h2>
+                            <span className="bg-amber-100 px-3 py-1 rounded-full text-xs font-bold font-mono text-amber-600 border border-amber-200">
+                                {pendingEliminations.length} Pending
+                            </span>
+                        </div>
+                        <div className="divide-y divide-amber-50">
+                            {pendingEliminations.map(e => (
+                                <div key={e._id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-5">
+                                    <div>
+                                        <p className="font-bold text-slate-900 text-sm">
+                                            <span className="text-green-700">{e.killerName}</span>
+                                            <span className="text-slate-400 mx-2">eliminated</span>
+                                            <span className="text-red-700">{e.victimName}</span>
+                                        </p>
+                                        <p className="text-xs text-slate-400 mt-0.5">
+                                            {e.killerEmail} → {e.victimEmail}
+                                        </p>
+                                        <p className="text-xs text-slate-400">
+                                            Reported: {new Date(e.timestamp).toLocaleString()}
+                                        </p>
+                                    </div>
+                                    <div className="flex gap-3 flex-shrink-0">
+                                        <button
+                                            onClick={() => handleVerdict(e._id, 'approve')}
+                                            disabled={actionLoading === e._id}
+                                            className="flex items-center gap-1.5 px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg text-sm font-bold transition disabled:opacity-50"
+                                        >
+                                            {actionLoading === e._id
+                                                ? <RefreshCw className="w-4 h-4 animate-spin" />
+                                                : <CheckCircle className="w-4 h-4" />}
+                                            Approve
+                                        </button>
+                                        <button
+                                            onClick={() => handleVerdict(e._id, 'reject')}
+                                            disabled={actionLoading === e._id}
+                                            className="flex items-center gap-1.5 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-bold transition disabled:opacity-50"
+                                        >
+                                            <XCircle className="w-4 h-4" />
+                                            Reject
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* ── Player Registry ─────────────────────────────────────── */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-x-auto">
                     <div className="flex justify-between items-center p-6 border-b border-slate-100">
                         <div className="flex items-center gap-3">
