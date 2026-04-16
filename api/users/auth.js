@@ -9,7 +9,9 @@ export default async function handler(req, res) {
   let email;
   try {
     const decodedToken = await authenticateRequest(req);
-    email = decodedToken.email;
+    // For custom tokens (server-side OAuth flow), the uid IS the email.
+    // For legacy Google sign-ins, the email claim is present directly.
+    email = decodedToken.email || decodedToken.uid;
   } catch (err) {
     return res.status(401).json({ error: err.message });
   }

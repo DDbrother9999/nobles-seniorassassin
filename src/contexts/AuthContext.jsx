@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { auth, googleProvider } from '../firebase';
-import { signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../firebase';
+import { signInWithCustomToken, signOut, onAuthStateChanged } from 'firebase/auth';
 
 const AuthContext = createContext();
 export const useAuth = () => useContext(AuthContext);
@@ -30,17 +30,17 @@ export const AuthProvider = ({ children }) => {
       const json = await response.json();
       return json.user;
     } catch (err) {
-      console.error("Fetch user data error:", err);
+      console.error('Fetch user data error:', err);
       return null;
     }
   }, []);
 
-  // Kicks off a full-page redirect to Google.
-  // On mobile this is the ONLY flow that survives account switching.
-  // The result is picked up by getRedirectResult when the page reloads.
+  // Redirect to the server-side OAuth flow.
+  // Google's account picker runs server-to-server so no browser storage
+  // is needed — Chrome profile switching can no longer break it.
   const loginWithGoogle = () => {
     setAuthError(null);
-    return signInWithRedirect(auth, googleProvider);
+    window.location.href = '/api/auth/google-start';
   };
 
   const logOut = async () => {
@@ -50,7 +50,7 @@ export const AuthProvider = ({ children }) => {
       setCurrentUser(null);
       setAuthError(null);
     } catch (error) {
-      console.error("Logout Error:", error);
+      console.error('Logout Error:', error);
     }
   };
 
@@ -79,55 +79,64 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     let isMounted = true;
 
-    // 1) Check if we just returned from a redirect sign-in.
-    //    This fires ONCE after the page reloads from Google's redirect.
-    getRedirectResult(auth)
-      .then(async (result) => {
+    const init = async () => {
+      // Check if we just came back from the OAuth callback with a custom token.
+      const params = new URLSearchParams(window.location.search);
+      const customToken = params.get('token');
+      const authError = params.get('auth_error');
+
+      // Clean the token/error from the URL immediately so it can't be bookmarked.
+      if (customToken || authError) {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+
+      if (authError) {
+        setAuthError(`Sign-in failed: ${authError.replace(/_/g, ' ')}`);
+      }
+
+      if (customToken) {
+        try {
+          // Exchange the server-issued custom token for a full Firebase session.
+          await signInWithCustomToken(auth, customToken);
+          // onAuthStateChanged below will fire and pick up the new user.
+        } catch (err) {
+          console.error('signInWithCustomToken failed:', err);
+          setAuthError('Sign-in failed. Please try again.');
+        }
+      }
+
+      // Primary auth state listener.
+      const unsubscribe = onAuthStateChanged(auth, async (user) => {
         if (!isMounted) return;
-        if (result?.user) {
-          const data = await fetchUserData(result.user);
-          if (!data) {
-            // Signed into Google but not on the roster — sign them out.
-            await signOut(auth);
+
+        if (user) {
+          setCurrentUser(user);
+          const data = await fetchUserData(user);
+          if (data) {
+            setUserData(data);
+            setAuthError(null);
+          } else {
+            setUserData(null);
             setAuthError('Access Denied: You are not on the official roster.');
           }
-          // If data exists, onAuthStateChanged below will handle setting state.
-        }
-      })
-      .catch((err) => {
-        if (!isMounted) return;
-        console.error('Redirect sign-in error:', err);
-        // Don't surface user-cancellation errors.
-        if (err.code !== 'auth/popup-closed-by-user' &&
-            err.code !== 'auth/cancelled-popup-request') {
-          setAuthError(err.message || 'Sign-in failed. Please try again.');
-        }
-      });
-
-    // 2) Primary auth state listener — fires on initial load AND after redirect sign-in.
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!isMounted) return;
-      if (user) {
-        const data = await fetchUserData(user);
-        if (data) {
-          setUserData(data);
-          setCurrentUser(user);
         } else {
-          // Firebase-authed but not on roster. Don't call signOut here
-          // to avoid loops — getRedirectResult handles that case.
           setCurrentUser(null);
           setUserData(null);
         }
-      } else {
-        setCurrentUser(null);
-        setUserData(null);
-      }
-      setLoading(false);
+        setLoading(false);
+      });
+
+      return unsubscribe;
+    };
+
+    let unsubscribe;
+    init().then(unsub => {
+      if (isMounted) unsubscribe = unsub;
     });
 
     return () => {
       isMounted = false;
-      unsubscribe();
+      if (unsubscribe) unsubscribe();
     };
   }, [fetchUserData]);
 

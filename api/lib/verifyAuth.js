@@ -22,9 +22,14 @@ export async function authenticateRequest(req) {
   const token = authHeader.split('Bearer ')[1];
   try {
     const decodedToken = await admin.auth().verifyIdToken(token);
-    if (!decodedToken || !decodedToken.email) {
+    // For custom tokens (server-side OAuth), the uid IS the email string.
+    // For standard Google sign-ins, the email claim is at the top level.
+    // Normalize so all downstream code can always use decodedToken.email.
+    const resolvedEmail = decodedToken.email || decodedToken.uid;
+    if (!resolvedEmail) {
       throw new Error('Invalid token details');
     }
+    decodedToken.email = resolvedEmail;
     return decodedToken;
   } catch (error) {
     throw new Error('VerifyToken failed: ' + error.message);

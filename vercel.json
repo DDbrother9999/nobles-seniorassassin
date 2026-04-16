@@ -1,10 +1,6 @@
 {
   "rewrites": [
     {
-      "source": "/__/(.*)",
-      "destination": "https://seniorassassin-ddbrother.firebaseapp.com/__/$1"
-    },
-    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

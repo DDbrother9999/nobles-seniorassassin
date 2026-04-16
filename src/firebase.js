@@ -3,23 +3,16 @@ import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA9POAMMEVpF_4BoqgacYrkO72K-KABxsk",
-  // Use our own Vercel domain so the auth handler runs on the same origin.
-  // vercel.json proxies /__/* to Firebase, avoiding cross-origin storage partitioning.
-  authDomain: "seniorassassin26.vercel.app",
+  authDomain: "seniorassassin-ddbrother.firebaseapp.com",
   projectId: "seniorassassin-ddbrother",
   storageBucket: "seniorassassin-ddbrother.firebasestorage.app",
   messagingSenderId: "464388291912",
-  appId: "1:464388291912:web:placeholder"
+  appId: "1:464388291912:web:0b6f79e0fab1693b1e077d"
 };
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
 
-// Force account picker on every sign-in so users can switch from personal
-// to org account without triggering auto-switch redirects that cause 400 errors.
-// hd hints Google to prioritize nobles.edu accounts in the picker.
-googleProvider.setCustomParameters({
-  prompt: 'select_account',
-  hd: 'nobles.edu',
-});
+// googleProvider is kept for any direct use, but login now goes through
+// the server-side OAuth flow in /api/auth/google-start.
+export const googleProvider = new GoogleAuthProvider();
