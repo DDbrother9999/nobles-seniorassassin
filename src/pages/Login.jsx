@@ -43,7 +43,7 @@ export default function Login() {
             <Crosshair className="w-8 h-8 text-brand-blue" />
           </div>
           <h1 className="text-3xl font-black tracking-tight text-brand-blue uppercase">Senior Assassin</h1>
-          <p className="text-slate-500 mt-2 text-sm uppercase tracking-widest font-semibold">Dashboard Portal</p>
+          <p className="text-slate-500 mt-2 text-sm uppercase tracking-widest font-semibold">Dashboard</p>
         </div>
 
         {displayError && (
