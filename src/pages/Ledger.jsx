@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { ShieldAlert, Crosshair, ArrowLeft, Clock, Download, Target } from 'lucide-react';
+import { ShieldAlert, Crosshair, ArrowLeft, Clock, Download } from 'lucide-react';
 
 export default function Ledger() {
   const { userData, loading: authLoading, apiFetch } = useAuth();
@@ -136,12 +136,6 @@ export default function Ledger() {
                             <Clock className="w-3.5 h-3.5" />
                             {date.toLocaleString()}
                           </div>
-                          {evt.newTargetName && evt.newTargetName !== "None" && (
-                            <div className="flex items-center gap-1.5 text-xs text-brand-blue font-semibold bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
-                              <Target className="w-3.5 h-3.5" />
-                              Assigned Target: {evt.newTargetName}
-                            </div>
-                          )}
                         </div>
                       </div>
                     </div>

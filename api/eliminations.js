@@ -120,6 +120,8 @@ export default async function handler(req, res) {
     }
 
     // ── APPROVE: atomically apply the kill ───────────────────────────────────
+    // The eliminations document becomes the single source of truth (ledger=true).
+    // No separate kill_events write; no newTarget* fields stored.
     const session = db.client.startSession();
     try {
       await session.withTransaction(async () => {
@@ -130,26 +132,6 @@ export default async function handler(req, res) {
         if (!victim) throw new Error('Victim user not found in database');
 
         const newTargetEmail = victim.targetEmail;
-        let newTargetName = 'None';
-        if (newTargetEmail) {
-          const newTargDoc = await db.collection('users').findOne(
-            { _id: newTargetEmail },
-            { session }
-          );
-          if (newTargDoc) newTargetName = `${newTargDoc.firstName} ${newTargDoc.lastName}`;
-        }
-
-        // Write to the public kill ledger
-        await db.collection('kill_events').insertOne({
-          killerEmail: elimination.killerEmail,
-          killerName: elimination.killerName,
-          victimEmail: elimination.victimEmail,
-          victimName: elimination.victimName,
-          timestamp: elimination.timestamp,
-          approvedAt: new Date().toISOString(),
-          newTargetEmail,
-          newTargetName,
-        }, { session });
 
         // Mark victim dead and remove their target
         await db.collection('users').updateOne(
@@ -165,10 +147,10 @@ export default async function handler(req, res) {
           { session }
         );
 
-        // Mark the elimination as approved with a timestamp
+        // Mark the elimination approved; ledger:true flags it for public display
         await col.updateOne(
           { _id: new ObjectId(id) },
-          { $set: { status: 'approved', decidedAt: new Date().toISOString() } },
+          { $set: { status: 'approved', ledger: true, decidedAt: new Date().toISOString() } },
           { session }
         );
       });

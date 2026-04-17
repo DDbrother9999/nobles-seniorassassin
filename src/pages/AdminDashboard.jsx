@@ -223,14 +223,14 @@ export default function AdminDashboard() {
     };
 
     const clearLedger = async () => {
-        if (!window.confirm("Are you sure you want to clear the entire ledger? This action cannot be undone. All kill events will be deleted forever.")) return;
+        if (!window.confirm("Total Reset: This will permanently delete ALL eliminations — the public ledger AND every player's pending/approved/rejected history. This cannot be undone. Continue?")) return;
 
         try {
             const res = await apiFetch('/api/kills', { method: 'DELETE' });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Backend failed to clear ledger");
 
-            alert(`Ledger successfully cleared! (${data.count} events deleted)`);
+            alert(`Total reset complete. ${data.count} record(s) deleted.`);
         } catch (err) {
             console.error("Failed to clear ledger", err);
             alert("Failed to clear ledger: " + err.message);
