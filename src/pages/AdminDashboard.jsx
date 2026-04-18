@@ -451,7 +451,7 @@ export default function AdminDashboard() {
     const toggleStatus = async (user) => {
         try {
             const newStatus = user.status === 'alive' ? 'dead' : 'alive';
-            const res = await apiFetch('/api/users/target', {
+            const res = await apiFetch('/api/users', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: user._id, updates: { status: newStatus } }),
@@ -468,7 +468,7 @@ export default function AdminDashboard() {
         if (newTarget === null) return;
         try {
             const targetEmail = newTarget.trim() === '' ? null : newTarget.trim();
-            const res = await apiFetch('/api/users/target', {
+            const res = await apiFetch('/api/users', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: user._id, updates: { targetEmail } }),
@@ -483,7 +483,7 @@ export default function AdminDashboard() {
     const assignTargetsRandomly = async () => {
         if (!window.confirm('Are you sure? This will overwrite ALL current target assignments and create a single randomized ring stringing everyone alive together.')) return;
         try {
-            const res = await apiFetch('/api/users/randomize', { method: 'POST' });
+            const res = await apiFetch('/api/users?action=randomize', { method: 'POST' });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Backend failed randomizing');
             alert(`Successfully assigned targets to ${data.count} players!`);
@@ -508,7 +508,7 @@ export default function AdminDashboard() {
     const reviveAll = async () => {
         if (!window.confirm("Are you sure you want to revive ALL players? Their status will all be set to 'alive'.")) return;
         try {
-            const res = await apiFetch('/api/users/revive', { method: 'POST' });
+            const res = await apiFetch('/api/users?action=revive', { method: 'POST' });
             if (!res.ok) throw new Error('Backend failed to revive players');
             alert('Successfully revived all players!');
             fetchUsers();

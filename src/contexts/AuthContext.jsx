@@ -14,7 +14,7 @@ export const AuthProvider = ({ children }) => {
   const fetchUserData = useCallback(async (user) => {
     try {
       const token = await user.getIdToken(true);
-      const response = await fetch('/api/users/auth', {
+      const response = await fetch('/api/users?action=auth', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
