@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import {
     UploadCloud, Users, RefreshCw, Shuffle, Eye, EyeOff, LogOut,
     FileText, User, Trash2, Heart, CheckCircle, XCircle, Clock,
-    UserPlus, BookOpen, Search, X, AlertTriangle, Plus
+    UserPlus, BookOpen, Search, X, AlertTriangle, Plus, ShieldCheck, Save
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -178,6 +178,10 @@ export default function AdminDashboard() {
     const [pendingEliminations, setPendingEliminations] = useState([]);
     const [actionLoading, setActionLoading] = useState(null);
 
+    // ── Safety item ───────────────────────────────────────────
+    const [safetyItem, setSafetyItem] = useState({ name: '', description: '', imageUrl: '' });
+    const [safetyItemSaving, setSafetyItemSaving] = useState(false);
+
     // ── Sort ─────────────────────────────────────────────────
     const [sortConfig, setSortConfig] = useState({ key: 'email', direction: 'asc' });
 
@@ -228,9 +232,34 @@ export default function AdminDashboard() {
         try {
             const res = await apiFetch('/api/settings');
             const data = await res.json();
-            if (res.ok && data.settings) setIsLedgerPublic(data.settings.isLedgerPublic || false);
+            if (res.ok && data.settings) {
+                setIsLedgerPublic(data.settings.isLedgerPublic || false);
+                if (data.settings.safetyItem) {
+                    setSafetyItem({
+                        name: data.settings.safetyItem.name || '',
+                        description: data.settings.safetyItem.description || '',
+                        imageUrl: data.settings.safetyItem.imageUrl || '',
+                    });
+                }
+            }
         } catch (e) {
             console.error('Failed to fetch settings', e);
+        }
+    };
+
+    const saveSafetyItem = async () => {
+        setSafetyItemSaving(true);
+        try {
+            const res = await apiFetch('/api/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ safetyItem }),
+            });
+            if (!res.ok) throw new Error('Failed to save');
+        } catch (err) {
+            alert('Failed to save safety item: ' + err.message);
+        } finally {
+            setSafetyItemSaving(false);
         }
     };
 
@@ -719,6 +748,57 @@ export default function AdminDashboard() {
                         </div>
                     </div>
                 )}
+
+                {/* ── Safety Item Editor ──────────────────────────────── */}
+                <div className="mb-8 bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
+                    <div className="flex items-center gap-3 p-6 border-b border-slate-100">
+                        <ShieldCheck className="w-5 h-5 text-brand-blue" />
+                        <h2 className="text-lg font-bold text-slate-900">Safety Item</h2>
+                        <span className="text-xs text-slate-400 font-medium">— shown on the Safety Items + Rules page</span>
+                    </div>
+                    <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-1.5">Item Name</label>
+                            <input
+                                type="text"
+                                placeholder="e.g. Red Solo Cup"
+                                value={safetyItem.name}
+                                onChange={e => setSafetyItem(s => ({ ...s, name: e.target.value }))}
+                                className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-1.5">Image URL <span className="normal-case font-normal text-slate-400">(optional)</span></label>
+                            <input
+                                type="text"
+                                placeholder="https://..."
+                                value={safetyItem.imageUrl}
+                                onChange={e => setSafetyItem(s => ({ ...s, imageUrl: e.target.value }))}
+                                className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition"
+                            />
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-1.5">Description</label>
+                            <textarea
+                                placeholder="Describe the safety item and any rules around it…"
+                                value={safetyItem.description}
+                                onChange={e => setSafetyItem(s => ({ ...s, description: e.target.value }))}
+                                rows={3}
+                                className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition resize-none"
+                            />
+                        </div>
+                        <div className="md:col-span-2 flex justify-end">
+                            <button
+                                onClick={saveSafetyItem}
+                                disabled={safetyItemSaving}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-brand-blue hover:bg-brand-blue-hover text-white rounded-xl text-sm font-bold transition-all disabled:opacity-50"
+                            >
+                                {safetyItemSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                {safetyItemSaving ? 'Saving…' : 'Save Safety Item'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
 
                 {/* ── Player Registry ─────────────────────────────────── */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-x-auto">
