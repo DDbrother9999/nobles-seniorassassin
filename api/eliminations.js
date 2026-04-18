@@ -70,7 +70,7 @@ export default async function handler(req, res) {
     // Prevent duplicate pending submissions
     const existing = await col.findOne({ killerEmail, status: 'pending' });
     if (existing) {
-      return res.status(409).json({ error: 'You already have an elimination pending admin review.' });
+      return res.status(409).json({ error: 'You already have an elimination pending review.' });
     }
 
     await col.insertOne({

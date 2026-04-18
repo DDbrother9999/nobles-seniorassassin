@@ -117,7 +117,7 @@ export const AuthProvider = ({ children }) => {
             setAuthError(null);
           } else {
             setUserData(null);
-            setAuthError('Access Denied: You are not on the official roster.');
+            setAuthError('Record not found. Try signing in with your @nobles.edu account. If that still doesn\'t work, contact dyin27@nobles.edu.');
           }
         } else {
           setCurrentUser(null);
