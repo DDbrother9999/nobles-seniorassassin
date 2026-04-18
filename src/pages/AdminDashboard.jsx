@@ -517,6 +517,19 @@ export default function AdminDashboard() {
         }
     };
 
+    const removeAllPlayers = async () => {
+        if (!window.confirm('⚠️ Remove ALL players? This will permanently delete every player from the roster. This cannot be undone. Continue?')) return;
+        try {
+            const res = await apiFetch('/api/users', { method: 'DELETE' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Backend failed to remove players');
+            alert(`Removed ${data.count} player${data.count !== 1 ? 's' : ''} from the roster.`);
+            fetchUsers();
+        } catch (err) {
+            alert('Failed to remove players: ' + err.message);
+        }
+    };
+
     const toggleLedgerProtection = async () => {
         try {
             const res = await apiFetch('/api/settings', {
@@ -631,6 +644,14 @@ export default function AdminDashboard() {
                         >
                             <Heart className="w-4 h-4" />
                             Revive All
+                        </button>
+
+                        <button
+                            onClick={removeAllPlayers}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-bold transition-all border border-red-200"
+                        >
+                            <Users className="w-4 h-4" />
+                            Remove All Players
                         </button>
 
                         <button

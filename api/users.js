@@ -179,8 +179,9 @@ export default async function handler(req, res) {
     }
   }
 
-  // ── DELETE /api/users?email=... ──────────────────────────────────────────────
-  // Admin: remove a single player by email.
+  // ── DELETE /api/users ────────────────────────────────────────────────────────
+  // Admin: ?email=...  → removes a single player.
+  //        (no param)  → removes ALL players from the roster.
   if (req.method === 'DELETE') {
     try {
       await authenticateAdmin(req);
@@ -189,13 +190,17 @@ export default async function handler(req, res) {
     }
 
     try {
-      const email = req.query.email;
-      if (!email) return res.status(400).json({ error: 'Missing ?email= query parameter.' });
+      const { email } = req.query;
 
-      const result = await users.deleteOne({ _id: email });
-      if (result.deletedCount === 0) return res.status(404).json({ error: 'Player not found.' });
+      if (email) {
+        const result = await users.deleteOne({ _id: email });
+        if (result.deletedCount === 0) return res.status(404).json({ error: 'Player not found.' });
+        return res.status(200).json({ success: true, message: `Removed player ${email}.` });
+      }
 
-      return res.status(200).json({ success: true, message: `Removed player ${email}.` });
+      // No email — wipe the entire roster.
+      const result = await users.deleteMany({});
+      return res.status(200).json({ success: true, count: result.deletedCount });
     } catch (error) {
       return res.status(500).json({ error: error.message });
     }
