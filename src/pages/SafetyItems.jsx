@@ -129,6 +129,7 @@ export default function Rules() {
           <Section icon={Clock} title="Time Rules" color="bg-amber-500">
             <Rule text="NO assassinations during sports practices or games." valid={false} />
             <Rule text="NO assassinations during rehearsals." valid={false} />
+            <Rule text="Assassinations CAN take place during the school day, but NOT on the academic campus (ie. off campus assassinations during frees are allowed)." valid={true} />
             <Rule text="Practice time includes: time on fields + walk to field from MAC + walk back from field to MAC." />
           </Section>
 
