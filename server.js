@@ -74,7 +74,7 @@ if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
 
   // 3. SPA Fallback: Route all non-API requests to index.html
-  app.get('/*', (req, res) => {
+  app.get('(.*)', (req, res) => {
     if (!req.path.startsWith('/api')) {
       res.sendFile(path.join(distPath, 'index.html'));
     } else {
