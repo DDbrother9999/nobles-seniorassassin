@@ -7,6 +7,7 @@ import PlayerDashboard from './pages/PlayerDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import Ledger from './pages/Ledger';
 import SafetyItems from './pages/SafetyItems';
+import { Analytics } from "@vercel/analytics/next"
 
 function AppRoutes() {
   const { userData } = useAuth();
@@ -27,6 +28,7 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <AppRoutes />
+          <Analytics />
       </AuthProvider>
     </BrowserRouter>
   );
