@@ -4,10 +4,7 @@ import { ObjectId } from 'mongodb';
 
 export default async function handler(req, res) {
   const db = await getDb();
-  // Query both collection names — the collection was renamed mid-session so
-  // submissions may exist in either 'pending_eliminations' or 'eliminations'.
   const col = db.collection('eliminations');
-  const legacyCol = db.collection('pending_eliminations');
 
   // ── GET ─────────────────────────────────────────────────────────────────────
   // Admin: returns all pending eliminations.
@@ -26,24 +23,12 @@ export default async function handler(req, res) {
 
     // Admin queue view — only when not explicitly requesting personal history
     if (isAdmin && !wantsMine) {
-      const [current, legacy] = await Promise.all([
-        col.find({ status: 'pending' }).sort({ timestamp: -1 }).toArray(),
-        legacyCol.find({ status: 'pending' }).sort({ timestamp: -1 }).toArray(),
-      ]);
-      const eliminations = [...current, ...legacy].sort(
-        (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
-      );
+      const eliminations = await col.find({ status: 'pending' }).sort({ timestamp: -1 }).toArray();
       return res.status(200).json({ eliminations });
     }
 
     // Personal history (players always; admins when ?mine=true)
-    const [current, legacy] = await Promise.all([
-      col.find({ killerEmail: decodedToken.email }).sort({ timestamp: -1 }).toArray(),
-      legacyCol.find({ killerEmail: decodedToken.email }).sort({ timestamp: -1 }).toArray(),
-    ]);
-    const history = [...current, ...legacy].sort(
-      (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
-    );
+    const history = await col.find({ killerEmail: decodedToken.email }).sort({ timestamp: -1 }).toArray();
     return res.status(200).json({ history });
   }
 
@@ -103,7 +88,10 @@ export default async function handler(req, res) {
 
     let elimination;
     try {
-      elimination = await col.findOne({ _id: new ObjectId(id) });
+      elimination = await col.findOne(
+        { _id: new ObjectId(id) },
+        { projection: { _id: 1, killerEmail: 1, victimEmail: 1 } }
+      );
     } catch {
       return res.status(400).json({ error: 'Invalid id format' });
     }
@@ -127,7 +115,7 @@ export default async function handler(req, res) {
       await session.withTransaction(async () => {
         const victim = await db.collection('users').findOne(
           { _id: elimination.victimEmail },
-          { session }
+          { session, projection: { targetEmail: 1 } }
         );
         if (!victim) throw new Error('Victim user not found in database');
 

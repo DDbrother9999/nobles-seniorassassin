@@ -28,13 +28,24 @@ export default async function handler(req, res) {
         }
       }
 
+      const projection = {
+        _id: 1,
+        killerName: 1,
+        victimName: 1,
+        timestamp: 1,
+        decidedAt: 1,
+        approvedAt: 1
+      };
+
       const [fromEliminations, fromLegacy] = await Promise.all([
         db.collection('eliminations')
           .find({ ledger: true })
+          .project(projection)
           .sort({ decidedAt: -1 })
           .toArray(),
         db.collection('kill_events')
           .find({})
+          .project(projection)
           .sort({ timestamp: -1 })
           .toArray(),
       ]);

@@ -24,7 +24,43 @@ export default async function handler(req, res) {
       const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim());
       const isAdmin = adminEmails.includes(email);
 
-      let user = await users.findOne({ _id: email });
+      const pipeline = [
+        { $match: { _id: email } },
+        { 
+          $lookup: {
+            from: "users",
+            localField: "targetEmail",
+            foreignField: "_id",
+            as: "targetData"
+          }
+        },
+        { $unwind: { path: "$targetData", preserveNullAndEmptyArrays: true } },
+        { 
+          $project: {
+            _id: 1,
+            firstName: 1,
+            lastName: 1,
+            status: 1,
+            targetEmail: 1,
+            grade: 1,
+            studentId: 1,
+            targetProfile: {
+              $cond: {
+                if: { $ne: ["$targetData", null] },
+                then: {
+                  firstName: "$targetData.firstName",
+                  lastName: "$targetData.lastName",
+                  studentId: "$targetData.studentId"
+                },
+                else: null
+              }
+            }
+          }
+        }
+      ];
+
+      const results = await users.aggregate(pipeline).toArray();
+      let user = results[0];
 
       if (!user && !isAdmin) {
         return res.status(403).json({ error: 'Access Denied: You are not on the official roster.' });
@@ -35,13 +71,7 @@ export default async function handler(req, res) {
 
       user.email = user._id;
       if (isAdmin) user.isAdmin = true;
-
-      if (user.targetEmail) {
-        const target = await users.findOne({ _id: user.targetEmail });
-        if (target) {
-          user.targetProfile = { firstName: target.firstName, lastName: target.lastName, studentId: target.studentId };
-        }
-      }
+      if (!user.targetProfile) delete user.targetProfile;
 
       return res.status(200).json({ user });
     } catch (error) {
@@ -122,21 +152,16 @@ export default async function handler(req, res) {
   // ── GET /api/users ───────────────────────────────────────────────────────────
   // All authenticated users: full roster. Target email hidden from non-admins.
   if (req.method === 'GET') {
-    let decoded;
     try {
-      decoded = await authenticateRequest(req);
+      await authenticateAdmin(req);
     } catch (err) {
       return res.status(401).json({ error: err.message });
     }
 
     try {
-      const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim());
-      const isAdmin = adminEmails.includes(decoded.email);
-
       const list = await users.find({}).toArray();
       list.forEach(u => {
         u.email = u._id;
-        if (!isAdmin) delete u.targetEmail;
       });
       return res.status(200).json({ users: list });
     } catch (error) {

@@ -7,6 +7,7 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     try {
+      res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
       const settings = await settingsCollection.findOne({ _id: 'game' });
       return res.status(200).json({ settings: settings || {} });
     } catch (error) {

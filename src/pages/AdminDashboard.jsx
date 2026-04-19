@@ -59,19 +59,37 @@ function ConfirmRemoveModal({ user, onConfirm, onCancel, loading }) {
 /* ─────────────────────────────────────────────────────────────
    Add Player Modal
 ───────────────────────────────────────────────────────────── */
-function AddPlayerModal({ masterList, currentPlayers, onAdd, onClose, adding }) {
+function AddPlayerModal({ currentPlayers, onAdd, onClose, adding, apiFetch }) {
     const [search, setSearch] = useState('');
+    const [results, setResults] = useState([]);
+    const [searching, setSearching] = useState(false);
+
+    useEffect(() => {
+        if (!search.trim() || search.trim().length < 2) {
+            setResults([]);
+            return;
+        }
+        const handler = setTimeout(() => {
+            performSearch(search);
+        }, 300);
+        return () => clearTimeout(handler);
+    }, [search]);
+
+    const performSearch = async (q) => {
+        setSearching(true);
+        try {
+            const res = await apiFetch(`/api/masterlist?q=${encodeURIComponent(q.trim())}`);
+            const data = await res.json();
+            if (res.ok) setResults(data.people || []);
+        } catch (e) {
+            console.error('Search failed', e);
+        } finally {
+            setSearching(false);
+        }
+    };
 
     const currentEmails = new Set(currentPlayers.map(u => u.email));
-    const filtered = masterList.filter(p => {
-        if (currentEmails.has(p.email)) return false;
-        if (!search.trim()) return true;
-        const q = search.toLowerCase();
-        return (
-            p.email.toLowerCase().includes(q) ||
-            `${p.firstName} ${p.lastName}`.toLowerCase().includes(q)
-        );
-    });
+    const filtered = results.filter(p => !currentEmails.has(p.email));
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -90,10 +108,14 @@ function AddPlayerModal({ masterList, currentPlayers, onAdd, onClose, adding }) 
                 {/* Search */}
                 <div className="p-4 border-b border-slate-100">
                     <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        {searching ? (
+                            <RefreshCw className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-blue animate-spin" />
+                        ) : (
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        )}
                         <input
                             type="text"
-                            placeholder="Search by name or email…"
+                            placeholder="Search by name or email (min 2 chars)…"
                             value={search}
                             onChange={e => setSearch(e.target.value)}
                             autoFocus
@@ -101,45 +123,50 @@ function AddPlayerModal({ masterList, currentPlayers, onAdd, onClose, adding }) 
                         />
                     </div>
                     <p className="text-xs text-slate-400 mt-2">
-                        {filtered.length} person{filtered.length !== 1 ? 's' : ''} available
-                        {currentEmails.size > 0 && ` · ${currentEmails.size} already in game`}
+                        {search.trim().length < 2 
+                            ? 'Type at least 2 characters to search roster'
+                            : `${filtered.length} matching person${filtered.length !== 1 ? 's' : ''} available`
+                        }
                     </p>
                 </div>
 
                 {/* List */}
                 <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
-                    {filtered.length === 0 && (
+                    {search.trim().length < 2 ? (
+                        <div className="flex flex-col items-center justify-center py-12 text-slate-400 italic">
+                            <Search className="w-8 h-8 mb-2 opacity-20" />
+                            <p className="text-sm">Start typing to search the school directory</p>
+                        </div>
+                    ) : filtered.length === 0 && !searching ? (
                         <div className="flex flex-col items-center justify-center py-12 text-slate-400">
                             <Users className="w-8 h-8 mb-2 opacity-30" />
                             <p className="text-sm">No matching people found</p>
-                            {masterList.length === 0 && (
-                                <p className="text-xs mt-1 text-slate-300">Upload a Master List first</p>
-                            )}
                         </div>
+                    ) : (
+                        filtered.map(person => (
+                            <button
+                                key={person.email}
+                                onClick={() => onAdd(person)}
+                                disabled={adding}
+                                className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-blue-50 transition-colors text-left group disabled:opacity-50"
+                            >
+                                <div>
+                                    <p className="font-semibold text-sm text-slate-900">
+                                        {person.firstName} {person.lastName}
+                                    </p>
+                                    <p className="text-xs text-slate-400">{person.email}</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {person.grade && (
+                                        <span className="text-xs font-semibold text-brand-blue bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                                            {person.grade}
+                                        </span>
+                                    )}
+                                    <Plus className="w-4 h-4 text-brand-blue opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </div>
+                            </button>
+                        ))
                     )}
-                    {filtered.map(person => (
-                        <button
-                            key={person.email}
-                            onClick={() => onAdd(person)}
-                            disabled={adding}
-                            className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-blue-50 transition-colors text-left group disabled:opacity-50"
-                        >
-                            <div>
-                                <p className="font-semibold text-sm text-slate-900">
-                                    {person.firstName} {person.lastName}
-                                </p>
-                                <p className="text-xs text-slate-400">{person.email}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                {person.grade && (
-                                    <span className="text-xs font-semibold text-brand-blue bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
-                                        {person.grade}
-                                    </span>
-                                )}
-                                <Plus className="w-4 h-4 text-brand-blue opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </div>
-                        </button>
-                    ))}
                 </div>
             </div>
         </div>
@@ -165,7 +192,7 @@ export default function AdminDashboard() {
     const playersFileRef = useRef();
 
     // ── Master list ──────────────────────────────────────────
-    const [masterList, setMasterList] = useState([]);
+    // masterList is no longer fetched on load; searches are server-side inside AddPlayerModal.
 
     // ── Modals ───────────────────────────────────────────────
     const [confirmRemoveUser, setConfirmRemoveUser] = useState(null); // user obj or null
@@ -189,22 +216,24 @@ export default function AdminDashboard() {
     /* ── Effects ─────────────────────────────────────────── */
     useEffect(() => {
         if (!currentUser) return;
-        fetchAll();
-        const interval = setInterval(fetchAll, 15000);
+        fetchAll(); // Initial full fetch
+        const interval = setInterval(() => fetchAll({ poll: true }), 60000);
         return () => clearInterval(interval);
     }, [currentUser]);
 
-    const fetchAll = () => {
-        fetchUsers();
-        fetchSettings();
-        fetchPendingEliminations();
-        fetchMasterList();
+    const fetchAll = (options = {}) => {
+        const force = options.force ? `?t=${Date.now()}` : '';
+        fetchUsers(force);
+        fetchSettings(force);
+        fetchPendingEliminations(force);
+        
+        // Removed fetchMasterList(force) to save bandwidth; AddPlayerModal now handles server-side search.
     };
 
     /* ── Data fetchers ───────────────────────────────────── */
-    const fetchUsers = async () => {
+    const fetchUsers = async (cacheBust = '') => {
         try {
-            const res = await apiFetch('/api/users');
+            const res = await apiFetch(`/api/users${cacheBust}`);
             const data = await res.json();
             if (res.ok && data.users) {
                 setUsers(data.users);
@@ -219,9 +248,9 @@ export default function AdminDashboard() {
         }
     };
 
-    const fetchMasterList = async () => {
+    const fetchMasterList = async (cacheBust = '') => {
         try {
-            const res = await apiFetch('/api/masterlist');
+            const res = await apiFetch(`/api/masterlist${cacheBust}`);
             const data = await res.json();
             if (res.ok && data.people) setMasterList(data.people);
         } catch (e) {
@@ -229,9 +258,9 @@ export default function AdminDashboard() {
         }
     };
 
-    const fetchSettings = async () => {
+    const fetchSettings = async (cacheBust = '') => {
         try {
-            const res = await apiFetch('/api/settings');
+            const res = await apiFetch(`/api/settings${cacheBust}`);
             const data = await res.json();
             if (res.ok && data.settings) {
                 setIsLedgerPublic(data.settings.isLedgerPublic || false);
@@ -264,9 +293,9 @@ export default function AdminDashboard() {
         }
     };
 
-    const fetchPendingEliminations = async () => {
+    const fetchPendingEliminations = async (cacheBust = '') => {
         try {
-            const res = await apiFetch('/api/eliminations');
+            const res = await apiFetch(`/api/eliminations${cacheBust}`);
             const data = await res.json();
             if (res.ok) setPendingEliminations(data.eliminations || []);
         } catch (e) {
@@ -640,12 +669,7 @@ export default function AdminDashboard() {
                             </button>
                             <input type="file" accept=".txt,.csv" ref={playersFileRef} onChange={handlePlayersUpload} className="hidden" />
 
-                            {/* Master list count badge */}
-                            {masterList.length > 0 && (
-                                <span className="text-xs font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-1 rounded-full">
-                                    {masterList.length} in master list
-                                </span>
-                            )}
+                             {/* Master list count badge removed to save bandwidth */}
                         </div>
 
                         {/* ── Game actions ────────────────────────────── */}
@@ -805,6 +829,15 @@ export default function AdminDashboard() {
                                 <Trash2 className="w-4 h-4" />
                                 Remove All
                             </button>
+
+                            <button
+                                onClick={() => fetchAll({ force: true })}
+                                title="Force a fresh data reload from the server (bypasses cache)"
+                                className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-sm font-bold transition-all ms-auto"
+                            >
+                                <RefreshCw className="w-4 h-4" />
+                                Refresh Data
+                            </button>
                         </div>
                     </div>
 
@@ -907,11 +940,11 @@ export default function AdminDashboard() {
 
             {showAddPlayerModal && (
                 <AddPlayerModal
-                    masterList={masterList}
                     currentPlayers={users}
                     onAdd={handleAddPlayer}
                     onClose={() => setShowAddPlayerModal(false)}
                     adding={addingPlayer}
+                    apiFetch={apiFetch}
                 />
             )}
 

@@ -14,7 +14,24 @@ export default async function handler(req, res) {
         return res.status(401).json({ error: err.message });
       }
 
-      const people = await masterListCollection.find({}).toArray();
+      const { q } = req.query;
+      let query = {};
+      if (q && q.trim()) {
+        const regex = new RegExp(q.trim(), 'i');
+        query = {
+          $or: [
+            { firstName: regex },
+            { lastName: regex },
+            { _id: regex },
+          ]
+        };
+      }
+
+      const people = await masterListCollection
+        .find(query)
+        .project({ _id: 1, firstName: 1, lastName: 1, grade: 1 })
+        .limit(20)
+        .toArray();
       // Normalize: expose email as top-level field (stored as _id)
       people.forEach(p => { p.email = p._id; });
       return res.status(200).json({ people });
