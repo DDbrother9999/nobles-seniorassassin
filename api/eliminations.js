@@ -6,32 +6,6 @@ export default async function handler(req, res) {
   const db = await getDb();
   const col = db.collection('eliminations');
 
-  // ── GET ─────────────────────────────────────────────────────────────────────
-  // Admin: returns all pending eliminations.
-  // Player: returns their full history.
-  if (req.method === 'GET') {
-    let decodedToken;
-    try {
-      decodedToken = await authenticateRequest(req);
-    } catch (err) {
-      return res.status(401).json({ error: err.message });
-    }
-
-    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim());
-    const isAdmin = adminEmails.includes(decodedToken.email);
-    const wantsMine = req.query.mine === 'true';
-
-    // Admin queue view — only when not explicitly requesting personal history
-    if (isAdmin && !wantsMine) {
-      const eliminations = await col.find({ status: 'pending' }).sort({ timestamp: -1 }).toArray();
-      return res.status(200).json({ eliminations });
-    }
-
-    // Personal history (players always; admins when ?mine=true)
-    const history = await col.find({ killerEmail: decodedToken.email }).sort({ timestamp: -1 }).toArray();
-    return res.status(200).json({ history });
-  }
-
   // ── POST ─────────────────────────────────────────────────────────────────────
   // Player reports an elimination. Creates a pending record — nothing is
   // committed to the game state until an admin approves it.

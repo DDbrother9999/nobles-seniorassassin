@@ -10,32 +10,13 @@ export default function PlayerDashboard() {
   const [loadingTarget, setLoadingTarget] = useState(true);
   const [showConfirm, setShowConfirm] = useState(false);
   const [eliminating, setEliminating] = useState(false);
-  const [eliminationHistory, setEliminationHistory] = useState([]);
-
-  const fetchPending = async () => {
-    try {
-      const res = await apiFetch('/api/eliminations?mine=true');
-      if (res.ok) {
-        const data = await res.json();
-        console.log('[fetchPending] history:', data.history);
-        setEliminationHistory(data.history || []);
-      } else {
-        const text = await res.text();
-        console.error('[fetchPending] non-ok response:', res.status, text);
-      }
-    } catch (err) {
-      console.error('[fetchPending] error:', err.message);
-    }
-  };
 
   useEffect(() => {
     reloadUserData();
-    fetchPending();
 
     const interval = setInterval(() => {
       reloadUserData();
-      fetchPending();
-    }, 15000);
+    }, 30000);
 
     return () => clearInterval(interval);
   }, []);
@@ -70,9 +51,8 @@ export default function PlayerDashboard() {
       });
 
       if (res.status === 409) {
-        // Already have a pending submission — just show it in the history
         setShowConfirm(false);
-        await fetchPending();
+        await reloadUserData();
         return;
       }
 
@@ -82,7 +62,7 @@ export default function PlayerDashboard() {
       }
 
       setShowConfirm(false);
-      await fetchPending();
+      await reloadUserData();
     } catch (err) {
       console.error('Failed to report elimination', err);
       alert('Error: ' + err.message);
@@ -92,7 +72,8 @@ export default function PlayerDashboard() {
   };
 
   // Derived: is there a pending elimination in the history?
-  const pendingElimination = eliminationHistory.find(e => e.status === 'pending') || null;
+  const history = userData?.eliminationHistory || [];
+  const pendingElimination = history.find(e => e.status === 'pending') || null;
 
   if (userData?.status === 'dead') {
     return (
@@ -202,11 +183,11 @@ export default function PlayerDashboard() {
         )}
 
         {/* History */}
-        {eliminationHistory.length > 0 && (
+        {history.length > 0 && (
           <div className="mt-10 pb-12">
             <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">History</h2>
             <div className="flex flex-col gap-2">
-              {eliminationHistory.map((e) => {
+              {history.map((e) => {
                 const isPending = e.status === 'pending';
                 const isApproved = e.status === 'approved';
                 const isRejected = e.status === 'rejected';
@@ -214,10 +195,10 @@ export default function PlayerDashboard() {
                   <div
                     key={e._id}
                     className={`flex items-start gap-3 px-5 py-4 rounded-xl border text-sm ${isPending
-                        ? 'bg-amber-50 border-amber-100 text-amber-800'
-                        : isApproved
-                          ? 'bg-green-50 border-green-100 text-green-800'
-                          : 'bg-red-50 border-red-100 text-red-800'
+                      ? 'bg-amber-50 border-amber-100 text-amber-800'
+                      : isApproved
+                        ? 'bg-green-50 border-green-100 text-green-800'
+                        : 'bg-red-50 border-red-100 text-red-800'
                       }`}
                   >
                     <span className="mt-0.5 text-base leading-none">

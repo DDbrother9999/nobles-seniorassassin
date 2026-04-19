@@ -5,6 +5,7 @@ import { ObjectId } from 'mongodb';
 export default async function handler(req, res) {
   const db = await getDb();
   const users = db.collection('users');
+  const eliminations = db.collection('eliminations');
   const { action } = req.query;
 
   // ── POST /api/users?action=auth ──────────────────────────────────────────────
@@ -72,6 +73,14 @@ export default async function handler(req, res) {
       user.email = user._id;
       if (isAdmin) user.isAdmin = true;
       if (!user.targetProfile) delete user.targetProfile;
+
+      // Include personal elimination history
+      user.eliminationHistory = await eliminations.find({ killerEmail: email }).sort({ timestamp: -1 }).toArray();
+
+      // Include pending queue for admins
+      if (isAdmin) {
+        user.pendingEliminations = await eliminations.find({ status: 'pending' }).sort({ timestamp: -1 }).toArray();
+      }
 
       return res.status(200).json({ user });
     } catch (error) {
@@ -187,7 +196,9 @@ export default async function handler(req, res) {
       list.forEach(u => {
         u.email = u._id;
       });
-      return res.status(200).json({ users: list });
+
+      const pending = await eliminations.find({ status: 'pending' }).sort({ timestamp: -1 }).toArray();
+      return res.status(200).json({ users: list, pendingEliminations: pending });
     } catch (error) {
       return res.status(500).json({ error: error.message });
     }

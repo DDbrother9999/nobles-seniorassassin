@@ -225,7 +225,6 @@ export default function AdminDashboard() {
         const force = options.force ? `?t=${Date.now()}` : '';
         fetchUsers(force);
         fetchSettings(force);
-        fetchPendingEliminations(force);
         
         // Removed fetchMasterList(force) to save bandwidth; AddPlayerModal now handles server-side search.
     };
@@ -237,6 +236,7 @@ export default function AdminDashboard() {
             const data = await res.json();
             if (res.ok && data.users) {
                 setUsers(data.users);
+                setPendingEliminations(data.pendingEliminations || []);
             } else {
                 throw new Error('Failed to load users array from API');
             }
@@ -290,16 +290,6 @@ export default function AdminDashboard() {
             alert('Failed to save safety item: ' + err.message);
         } finally {
             setSafetyItemSaving(false);
-        }
-    };
-
-    const fetchPendingEliminations = async (cacheBust = '') => {
-        try {
-            const res = await apiFetch(`/api/eliminations${cacheBust}`);
-            const data = await res.json();
-            if (res.ok) setPendingEliminations(data.eliminations || []);
-        } catch (e) {
-            console.error('Failed to fetch pending eliminations', e);
         }
     };
 
@@ -498,8 +488,7 @@ export default function AdminDashboard() {
                 const d = await res.json();
                 throw new Error(d.error || 'Action failed');
             }
-            await fetchPendingEliminations();
-            if (action === 'approve') await fetchUsers();
+            await fetchUsers();
         } catch (err) {
             alert('Failed: ' + err.message);
         } finally {
