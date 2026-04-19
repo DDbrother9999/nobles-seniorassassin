@@ -85,6 +85,23 @@ export default async function handler(req, res) {
     }
   }
 
+  // ── POST /api/users?action=unassign ──────────────────────────────────────────
+  // Admin: clears all targetEmail fields.
+  if (req.method === 'POST' && action === 'unassign') {
+    try {
+      await authenticateAdmin(req);
+    } catch (err) {
+      return res.status(401).json({ error: err.message });
+    }
+
+    try {
+      const result = await users.updateMany({}, { $set: { targetEmail: null } });
+      return res.status(200).json({ success: true, count: result.modifiedCount });
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+  }
+
   // ── POST /api/users?action=revive ────────────────────────────────────────────
   // Admin: marks all players as alive.
   if (req.method === 'POST' && action === 'revive') {

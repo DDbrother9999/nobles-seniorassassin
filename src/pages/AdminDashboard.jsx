@@ -547,6 +547,19 @@ export default function AdminDashboard() {
         }
     };
 
+    const unassignAllTargets = async () => {
+        if (!window.confirm('Are you sure? This will remove ALL current target assignments.')) return;
+        try {
+            const res = await apiFetch('/api/users?action=unassign', { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Backend failed unassigning');
+            alert('Successfully unassigned all targets!');
+            fetchUsers();
+        } catch (err) {
+            alert('Failed to unassign targets.');
+        }
+    };
+
     const removeAllPlayers = async () => {
         if (!window.confirm('⚠️ Remove ALL players? This will permanently delete every player from the roster. This cannot be undone. Continue?')) return;
         try {
@@ -636,13 +649,6 @@ export default function AdminDashboard() {
                         </div>
 
                         {/* ── Game actions ────────────────────────────── */}
-                        <button
-                            onClick={assignTargetsRandomly}
-                            className="flex items-center gap-2 px-4 py-2 bg-brand-blue hover:bg-brand-blue-hover text-white rounded-lg text-sm font-bold transition-all"
-                        >
-                            <Shuffle className="w-4 h-4" />
-                            Randomize Targets
-                        </button>
 
                         <button
                             onClick={toggleLedgerProtection}
@@ -668,21 +674,6 @@ export default function AdminDashboard() {
                             Clear Ledger
                         </button>
 
-                        <button
-                            onClick={reviveAll}
-                            className="flex items-center gap-2 px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg text-sm font-bold transition-all border border-green-200"
-                        >
-                            <Heart className="w-4 h-4" />
-                            Revive All
-                        </button>
-
-                        <button
-                            onClick={removeAllPlayers}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-bold transition-all border border-red-200"
-                        >
-                            <Users className="w-4 h-4" />
-                            Remove All Players
-                        </button>
 
                         <button
                             onClick={() => setShowSafetyItemModal(true)}
@@ -761,24 +752,60 @@ export default function AdminDashboard() {
 
                 {/* ── Player Registry ─────────────────────────────────── */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-x-auto">
-                    <div className="flex justify-between items-center p-6 border-b border-slate-100">
-                        <div className="flex items-center gap-3">
-                            <h2 className="text-lg font-bold flex items-center gap-2 text-brand-blue">
-                                <Users className="w-5 h-5" /> Player Registry
-                            </h2>
-                            <span className="bg-slate-100 px-3 py-1 rounded-full text-xs font-bold font-mono text-slate-500 border border-slate-200">
-                                {users.length} Players
-                            </span>
+                    <div className="flex flex-col p-6 border-b border-slate-100 gap-6">
+                        <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <h2 className="text-lg font-bold flex items-center gap-2 text-brand-blue">
+                                    <Users className="w-5 h-5" /> Player Registry
+                                </h2>
+                                <span className="bg-slate-100 px-3 py-1 rounded-full text-xs font-bold font-mono text-slate-500 border border-slate-200">
+                                    {users.length} Players
+                                </span>
+                            </div>
                         </div>
 
-                        {/* Add Player button */}
-                        <button
-                            onClick={() => setShowAddPlayerModal(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-bold transition-all shadow-sm"
-                        >
-                            <UserPlus className="w-4 h-4" />
-                            Add Player
-                        </button>
+                        {/* Action Buttons Row */}
+                        <div className="flex flex-wrap gap-3">
+                            <button
+                                onClick={() => setShowAddPlayerModal(true)}
+                                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-all shadow-sm"
+                            >
+                                <UserPlus className="w-4 h-4" />
+                                Add Player
+                            </button>
+
+                            <button
+                                onClick={reviveAll}
+                                className="flex items-center gap-2 px-4 py-2.5 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded-xl text-sm font-bold transition-all"
+                            >
+                                <Heart className="w-4 h-4" />
+                                Revive All
+                            </button>
+
+                            <button
+                                onClick={assignTargetsRandomly}
+                                className="flex items-center gap-2 px-4 py-2.5 bg-brand-blue hover:bg-brand-blue-hover text-white rounded-xl text-sm font-bold transition-all shadow-sm"
+                            >
+                                <Shuffle className="w-4 h-4" />
+                                Randomize Targets
+                            </button>
+
+                            <button
+                                onClick={unassignAllTargets}
+                                className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl text-sm font-bold transition-all"
+                            >
+                                <X className="w-4 h-4" />
+                                Unassign All
+                            </button>
+
+                            <button
+                                onClick={removeAllPlayers}
+                                className="flex items-center gap-2 px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-sm font-bold transition-all"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                                Remove All
+                            </button>
+                        </div>
                     </div>
 
                     {loading ? (
