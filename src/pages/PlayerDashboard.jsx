@@ -16,7 +16,7 @@ export default function PlayerDashboard() {
 
     const interval = setInterval(() => {
       reloadUserData();
-    }, 30000);
+    }, 60000);
 
     return () => clearInterval(interval);
   }, []);
