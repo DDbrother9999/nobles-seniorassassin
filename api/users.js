@@ -109,6 +109,14 @@ export default async function handler(req, res) {
       }));
 
       await users.bulkWrite(ops);
+      
+      // Also update roundStartedAt in settings
+      await db.collection('settings').updateOne(
+        { _id: 'game' },
+        { $set: { roundStartedAt: new Date().toISOString() } },
+        { upsert: true }
+      );
+
       return res.status(200).json({ success: true, count: shuffled.length });
     } catch (error) {
       return res.status(500).json({ error: error.message });
@@ -160,6 +168,22 @@ export default async function handler(req, res) {
 
     try {
       const list = await users.find({}).toArray();
+      
+      const settings = await db.collection('settings').findOne({ _id: 'game' });
+      const roundStartedAt = settings?.roundStartedAt;
+
+      if (roundStartedAt) {
+        const approvedKills = await db.collection('eliminations').find({
+          status: 'approved',
+          decidedAt: { $gte: roundStartedAt }
+        }).toArray();
+
+        const killersSet = new Set(approvedKills.map(k => k.killerEmail));
+        list.forEach(u => {
+          u.hasKillThisRound = killersSet.has(u._id);
+        });
+      }
+
       list.forEach(u => {
         u.email = u._id;
       });

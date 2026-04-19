@@ -602,6 +602,22 @@ export default function AdminDashboard() {
         }
     };
 
+    const resetRoundClock = async () => {
+        if (!window.confirm('Are you sure you want to RESET the round clock? This will flag everyone who hasn\'t gotten a kill starting from NOW. Use this if a new round has begun but you aren\'t randomizing targets.')) return;
+        try {
+            const res = await apiFetch('/api/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ roundStartedAt: new Date().toISOString() }),
+            });
+            if (!res.ok) throw new Error('Failed to update on backend');
+            alert('Round clock reset! Everyone is now un-flagged for the new round.');
+            fetchUsers();
+        } catch (err) {
+            alert('Failed to reset round clock');
+        }
+    };
+
     const toggleLedgerProtection = async () => {
         try {
             const res = await apiFetch('/api/settings', {
@@ -808,10 +824,20 @@ export default function AdminDashboard() {
 
                             <button
                                 onClick={assignTargetsRandomly}
+                                title="Randomize targets for all alive players and start a new round"
                                 className="flex items-center gap-2 px-4 py-2.5 bg-brand-blue hover:bg-brand-blue-hover text-white rounded-xl text-sm font-bold transition-all shadow-sm"
                             >
                                 <Shuffle className="w-4 h-4" />
                                 Randomize Targets
+                            </button>
+
+                            <button
+                                onClick={resetRoundClock}
+                                title="Set the round start time to NOW without reshuffling targets"
+                                className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-sm font-bold transition-all"
+                            >
+                                <Clock className="w-4 h-4" />
+                                Reset Round
                             </button>
 
                             <button
@@ -857,6 +883,7 @@ export default function AdminDashboard() {
                                     >
                                         Status {sortConfig.key === 'status' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}
                                     </th>
+                                    <th className="px-6 py-4 font-bold">Kill?</th>
                                     <th className="px-6 py-4 font-bold">Target</th>
                                     <th className="px-6 py-4 font-bold">Reassign</th>
                                     <th className="px-6 py-4 font-bold text-red-400">Remove</th>
@@ -884,6 +911,22 @@ export default function AdminDashboard() {
                                             >
                                                 {u.status}
                                             </button>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            {u.status === 'alive' && (
+                                                u.hasKillThisRound ? (
+                                                    <div className="flex items-center gap-1.5 text-green-600 font-bold text-xs bg-green-50 px-2 py-1 rounded-lg border border-green-100 w-fit">
+                                                        <CheckCircle className="w-3.5 h-3.5" />
+                                                        SAFE
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center gap-1.5 text-red-600 font-bold text-xs bg-red-50 px-2 py-1 rounded-lg border border-red-100 w-fit" title="No approved kills this round">
+                                                        <AlertTriangle className="w-3.5 h-3.5" />
+                                                        MISSING
+                                                    </div>
+                                                )
+                                            )}
+                                            {u.status !== 'alive' && <span className="text-slate-300">—</span>}
                                         </td>
                                         <td className="px-6 py-4">
                                             {u.targetEmail ? (
