@@ -1,10 +1,18 @@
 import express from 'express';
 import path from 'path';
-import { fileURLToPath, pathToFileURL } from 'url';
-import fs from 'fs';
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
-// 1. Load environment variables (essential for your API to connect to DB/Auth)
+// 1. Import API Handlers
+import googleStart from './api/auth/google-start.js';
+import googleCallback from './api/auth/google-callback.js';
+import killsHandler from './api/kills.js';
+import eliminationsHandler from './api/eliminations.js';
+import usersHandler from './api/users.js';
+import masterlistHandler from './api/masterlist.js';
+import settingsHandler from './api/settings.js';
+
+// Load environment variables
 dotenv.config();
 dotenv.config({ path: '.env.local', override: true });
 
@@ -12,74 +20,43 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-// Using port 3000 to avoid conflict with the Vite dev server (5173)
 const PORT = process.env.PORT || 3000;
 
 // Middleware to parse JSON payloads
 app.use(express.json());
 
 // ==========================================
-// 2. CONNECT API ROUTES (Dynamic Loader)
+// 2. CONNECT API ROUTES (Hardcoded)
 // ==========================================
-async function loadApiRoutes(dir, routePrefix = '/api') {
-  if (!fs.existsSync(dir)) return;
-  const files = fs.readdirSync(dir);
-
-  for (const file of files) {
-    const fullPath = path.join(dir, file);
-    const stat = fs.statSync(fullPath);
-
-    if (stat.isDirectory()) {
-      if (file === 'lib') continue;
-      await loadApiRoutes(fullPath, `${routePrefix}/${file}`);
-    } else if (file.endsWith('.js')) {
-      let routeName = file.replace('.js', '');
-      routeName = routeName.replace(/\[(.+?)\]/g, ':$1'); // Convert [id] to :id
-      const routePath = routeName === 'index' ? routePrefix : `${routePrefix}/${routeName}`;
-      
-      try {
-        const fileUrl = pathToFileURL(fullPath).href;
-        const { default: handler } = await import(fileUrl);
-        if (typeof handler === 'function') {
-          console.log(` Registering: ${routePath}`);
-          app.all(routePath, handler);
-        }
-      } catch (err) {
-        console.error(` Failed to load route ${routePath}:`, err);
-      }
-    }
-  }
-}
-
 console.log('--- Connecting API Routes ---');
-await loadApiRoutes(path.join(__dirname, 'api'));
+
+app.all('/api/auth/google-start', googleStart);
+app.all('/api/auth/google-callback', googleCallback);
+app.all('/api/kills', killsHandler);
+app.all('/api/eliminations', eliminationsHandler);
+app.all('/api/users', usersHandler);
+app.all('/api/masterlist', masterlistHandler);
+app.all('/api/settings', settingsHandler);
+
 console.log('--- API Routes Connected ---\n');
 
 // ==========================================
 // 3. SERVE THE FRONTEND
 // ==========================================
 const distPath = path.join(__dirname, 'dist');
-if (fs.existsSync(distPath)) {
-  app.use(express.static(distPath));
-}
+app.use(express.static(distPath));
 
 // ==========================================
-// 4. REACT ROUTER CATCH-ALL (Fixes PathError)
+// 4. REACT ROUTER CATCH-ALL
 // ==========================================
-// We use app.use() without a path string to avoid the 'path-to-regexp' wildcard error.
-// This is the most compatible way to handle a catch-all in newer Node/Express versions.
 app.use((req, res) => {
-  // If a request starts with /api but wasn't caught by the loader above, return a 404
+  // If a request starts with /api but wasn't caught by the hardcoded routes above
   if (req.path.startsWith('/api/')) {
-    return res.status(404).json({ error: 'API endpoint not found.' });
+    return res.status(404).json({ error: 'API endpoint not found on this server.' });
   }
   
-  // Otherwise, send all frontend traffic to index.html for React Router
-  if (fs.existsSync(distPath)) {
-    res.sendFile(path.join(distPath, 'index.html'));
-  } else {
-    res.status(500).send('Frontend not built. Please run "npm run build" first.');
-  }
+  // Otherwise, send all frontend traffic to index.html so React Router can handle it
+  res.sendFile(path.join(distPath, 'index.html'));
 });
 
 // ==========================================
