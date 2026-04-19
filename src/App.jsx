@@ -7,7 +7,7 @@ import PlayerDashboard from './pages/PlayerDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import Ledger from './pages/Ledger';
 import SafetyItems from './pages/SafetyItems';
-import { Analytics } from "@vercel/analytics/next"
+import { Analytics } from "@vercel/analytics/react"
 
 function AppRoutes() {
   const { userData } = useAuth();
