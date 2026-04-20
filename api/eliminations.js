@@ -26,6 +26,15 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'You can only report your own eliminations.' });
     }
 
+    // Verify the victim is actually the killer's assigned target
+    const killer = await db.collection('users').findOne(
+      { _id: killerEmail }, 
+      { projection: { targetEmail: 1 } }
+    );
+    if (!killer || killer.targetEmail !== victimEmail) {
+      return res.status(400).json({ error: 'Reported victim is not your current target.' });
+    }
+
     // Prevent duplicate pending submissions
     const existing = await col.findOne({ killerEmail, status: 'pending' });
     if (existing) {
