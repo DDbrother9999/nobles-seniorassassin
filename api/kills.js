@@ -76,6 +76,7 @@ export default async function handler(req, res) {
   // Legacy direct-kill endpoint (kept for compatibility).
   // New flow: use /api/eliminations (pending → admin approval → ledger).
   if (req.method === 'POST') {
+    return res.status(405).json({ error: 'Endpoint deprecated. Use /api/eliminations.' });
     try {
       let decodedToken;
       try {
