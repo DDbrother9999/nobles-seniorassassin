@@ -48,7 +48,7 @@ export default function History() {
   useEffect(() => {
     if (authLoading) return;
     fetchHistoryData();
-    const interval = setInterval(fetchHistoryData, 15000);
+    const interval = setInterval(fetchHistoryData, 60000);
     return () => clearInterval(interval);
   }, [userData, authLoading]);
 
@@ -89,7 +89,7 @@ export default function History() {
               onClick={() => navigate(userData?.isAdmin ? '/admin' : '/dashboard')}
               className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white rounded-lg hover:bg-slate-100 font-semibold text-slate-700 text-sm transition shadow-sm"
             >
-              <ArrowLeft className="w-4 h-4" /> Back to Base
+              <ArrowLeft className="w-4 h-4" /> Return Home
             </button>
           </div>
         </header>
