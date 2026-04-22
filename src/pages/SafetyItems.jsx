@@ -120,10 +120,10 @@ export default function Rules() {
           {/* Location Rules */}
           <Section icon={MapPin} title="Location Rules" color="bg-rose-500">
             <Rule text="NO assassinations on the academic campus (24/7, not just during the school day)." valid={false} />
-            <Rule text="NO assassinations within 10ft of a moving car on Nobles campus." valid={false} />
+            <Rule text="NO assassinations within 10ft of a moving car or bus on Nobles campus." valid={false} />
             <Rule text="NO assassinations indoors." valid={false} />
             <Rule text="Assassinations CAN take place in parking lots." valid={true} />
-            <Rule text="Assassinations CAN take place in cars, as long as they are off, or in park." valid={true} />
+            <Rule text="Assassinations CAN take place in cars or buses, as long as they are off, or in park." valid={true} />
             <Rule text="The academic campus includes: Henderson, Shattuck, Baker, Academic Center, Beach, Castle, and the walk to the castle." />
           </Section>
 
