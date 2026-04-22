@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import {
     UploadCloud, Users, RefreshCw, Shuffle, Eye, EyeOff, LogOut,
     FileText, User, Trash2, Heart, CheckCircle, XCircle, Clock,
-    UserPlus, BookOpen, Search, X, AlertTriangle, Plus, ShieldCheck, Save
+    UserPlus, BookOpen, Search, X, AlertTriangle, Plus, ShieldCheck, Save, Download
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -621,6 +621,24 @@ export default function AdminDashboard() {
         }
     };
 
+    const handleExportJSON = async () => {
+        try {
+            const res = await apiFetch('/api/kills');
+            const data = await res.json();
+            const dataStr = JSON.stringify(data.kills, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `history_export_${new Date().getTime()}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (e) {
+            alert('Failed to export JSON: ' + e.message);
+        }
+    };
+
     /* ── Helpers ─────────────────────────────────────────── */
     const getTargetName = (email) => {
         const t = users.find(u => u.email === email);
@@ -684,15 +702,15 @@ export default function AdminDashboard() {
                             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${isLedgerPublic ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
                         >
                             {isLedgerPublic ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                            {isLedgerPublic ? 'Unprotect Ledger: ON' : 'Unprotect Ledger: OFF'}
+                            {isLedgerPublic ? 'Unprotect History: ON' : 'Unprotect History: OFF'}
                         </button>
 
                         <button
-                            onClick={() => navigate('/ledger')}
+                            onClick={() => navigate('/history')}
                             className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-bold transition-all border border-slate-200"
                         >
                             <FileText className="w-4 h-4" />
-                            View Ledger
+                            View History
                         </button>
 
                         <button
@@ -700,7 +718,15 @@ export default function AdminDashboard() {
                             className="flex items-center gap-2 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-bold transition-all border border-red-200"
                         >
                             <Trash2 className="w-4 h-4" />
-                            Clear Ledger
+                            Clear History
+                        </button>
+
+                        <button
+                            onClick={handleExportJSON}
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-bold transition-all border border-slate-200"
+                        >
+                            <Download className="w-4 h-4" />
+                            Export JSON
                         </button>
 
 

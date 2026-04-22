@@ -1,24 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { ShieldAlert, Crosshair, ArrowLeft, Clock, Download } from 'lucide-react';
+import { ShieldAlert, Crosshair, ArrowLeft, Clock, Download, Trophy } from 'lucide-react';
 
-export default function Ledger() {
+export default function History() {
   const { userData, loading: authLoading, apiFetch } = useAuth();
   const navigate = useNavigate();
   const [events, setEvents] = useState([]);
+  const [leaderboard, setLeaderboard] = useState([]);
   const [isPublic, setIsPublic] = useState(false);
   const [loading, setLoading] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
 
-  const fetchLedgerData = async () => {
+  const fetchHistoryData = async () => {
     try {
       const fetcher = userData ? apiFetch : fetch;
       const [settingsRes, killsRes] = await Promise.all([
         fetch('/api/settings'),
         fetcher('/api/kills')
       ]);
-      
+
       if (settingsRes.ok) {
         const data = await settingsRes.json();
         const publicState = data.settings && data.settings.isLedgerPublic === true;
@@ -35,9 +36,10 @@ export default function Ledger() {
       if (killsRes.ok) {
         const data = await killsRes.json();
         setEvents(data.kills || []);
+        setLeaderboard(data.leaderboard || []);
       }
     } catch (e) {
-      console.error("Failed to fetch ledger data", e);
+      console.error("Failed to fetch history data", e);
     } finally {
       setLoading(false);
     }
@@ -45,25 +47,13 @@ export default function Ledger() {
 
   useEffect(() => {
     if (authLoading) return;
-    fetchLedgerData();
-    const interval = setInterval(fetchLedgerData, 15000);
+    fetchHistoryData();
+    const interval = setInterval(fetchHistoryData, 15000);
     return () => clearInterval(interval);
   }, [userData, authLoading]);
 
-  const handleExportJSON = () => {
-    const dataStr = JSON.stringify(events, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `ledger_export_${new Date().getTime()}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   if (authLoading || loading) {
-    return <div className="min-h-screen bg-slate-50 flex items-center justify-center font-bold text-slate-400">Loading Ledger Data...</div>;
+    return <div className="min-h-screen bg-slate-50 flex items-center justify-center font-bold text-slate-400">Loading History Data...</div>;
   }
 
   if (accessDenied) {
@@ -72,7 +62,7 @@ export default function Ledger() {
         <div className="text-center">
           <ShieldAlert className="w-20 h-20 text-red-500 mx-auto mb-4" />
           <h1 className="text-2xl font-black text-slate-900 mb-2 uppercase">Access Restricted</h1>
-          <p className="text-slate-500 mb-8 font-medium">This ledger is currently classified by Admins.</p>
+          <p className="text-slate-500 mb-8 font-medium">Purposely not visible.</p>
           <button
             onClick={() => navigate('/')}
             className="px-6 py-2 bg-brand-blue text-white font-bold rounded-lg shadow-md hover:bg-brand-blue-hover transition"
@@ -90,17 +80,11 @@ export default function Ledger() {
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
             <h1 className="text-3xl font-black uppercase tracking-wider flex items-center gap-3 text-brand-blue">
-              <FileTextIcon /> Ledger
+              <FileTextIcon /> History
             </h1>
           </div>
 
           <div className="flex gap-4">
-            <button
-              onClick={handleExportJSON}
-              className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white rounded-lg hover:bg-slate-100 font-semibold text-slate-700 text-sm transition shadow-sm"
-            >
-              <Download className="w-4 h-4" /> Export JSON
-            </button>
             <button
               onClick={() => navigate(userData?.isAdmin ? '/admin' : '/dashboard')}
               className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white rounded-lg hover:bg-slate-100 font-semibold text-slate-700 text-sm transition shadow-sm"
@@ -109,6 +93,39 @@ export default function Ledger() {
             </button>
           </div>
         </header>
+
+        {leaderboard.length > 0 && (
+          <div className="mb-8 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+            <div className="bg-slate-900 p-6 flex items-center justify-between">
+              <h2 className="text-2xl font-black text-white uppercase tracking-wider flex items-center gap-3">
+                <Trophy className="w-6 h-6 text-yellow-400" /> Leaderboard (Top 5)
+              </h2>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {leaderboard.map((player, idx) => {
+                let badgeClass = "bg-slate-100 text-slate-500";
+                if (idx === 0) badgeClass = "bg-yellow-100 text-yellow-700 border border-yellow-300 shadow-sm";
+                else if (idx === 1) badgeClass = "bg-gray-200 text-gray-700 border border-gray-300 shadow-sm";
+                else if (idx === 2) badgeClass = "bg-orange-100 text-orange-800 border border-orange-300 shadow-sm";
+
+                return (
+                  <div key={player.killerEmail} className="p-4 md:p-6 flex items-center gap-4 hover:bg-slate-50 transition">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-lg ${badgeClass}`}>
+                      #{idx + 1}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-lg font-bold text-slate-900">{player.killerName}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl font-black text-brand-blue">{player.killCount}</span>
+                      <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">Kills</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
           {events.length === 0 ? (

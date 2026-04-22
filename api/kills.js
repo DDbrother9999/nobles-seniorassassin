@@ -26,6 +26,9 @@ export default async function handler(req, res) {
         } catch (err) {
           return res.status(403).json({ error: 'Ledger is private' });
         }
+        res.setHeader('Cache-Control', 'private, max-age=15');
+      } else {
+        res.setHeader('Cache-Control', 'public, s-maxage=15, stale-while-revalidate=30');
       }
 
       const projection = {
@@ -37,7 +40,7 @@ export default async function handler(req, res) {
         approvedAt: 1
       };
 
-      const [fromEliminations, fromLegacy] = await Promise.all([
+      const [fromEliminations, fromLegacy, leaderboardDoc] = await Promise.all([
         db.collection('eliminations')
           .find({ ledger: true })
           .project(projection)
@@ -48,7 +51,10 @@ export default async function handler(req, res) {
           .project(projection)
           .sort({ timestamp: -1 })
           .toArray(),
+        db.collection('settings').findOne({ _id: 'leaderboard' })
       ]);
+      
+      const leaderboard = leaderboardDoc ? leaderboardDoc.top5 || [] : [];
 
       // Merge, deduplicate by _id string, newest first, strip internal fields.
       const seen = new Set();
@@ -66,7 +72,7 @@ export default async function handler(req, res) {
         })
         .map(stripFields);
 
-      return res.status(200).json({ kills });
+      return res.status(200).json({ kills, leaderboard });
     } catch (error) {
       return res.status(500).json({ error: error.message });
     }

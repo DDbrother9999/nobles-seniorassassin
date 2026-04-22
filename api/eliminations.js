@@ -129,6 +129,37 @@ export default async function handler(req, res) {
       await session.endSession();
     }
 
+    // Materialize Leaderboard (Top 5)
+    try {
+      const pipeline = [
+        { $match: { ledger: true } },
+        { $project: { killerEmail: 1, killerName: 1, decidedAt: 1, approvedAt: 1, timestamp: 1 } },
+        { $unionWith: { 
+            coll: "kill_events",
+            pipeline: [
+              { $project: { killerEmail: 1, killerName: 1, decidedAt: 1, approvedAt: 1, timestamp: 1 } }
+            ]
+        }},
+        { $group: {
+            _id: "$killerEmail",
+            killerName: { $first: "$killerName" },
+            killCount: { $sum: 1 },
+            latestKill: { $max: { $ifNull: ["$decidedAt", { $ifNull: ["$approvedAt", "$timestamp"] }] } }
+        }},
+        { $sort: { killCount: -1, latestKill: 1 } },
+        { $limit: 5 },
+        { $project: { killerEmail: "$_id", killerName: 1, killCount: 1, latestKill: 1, _id: 0 } }
+      ];
+      const leaderboard = await db.collection('eliminations').aggregate(pipeline).toArray();
+      await db.collection('settings').updateOne(
+        { _id: 'leaderboard' },
+        { $set: { top5: leaderboard } },
+        { upsert: true }
+      );
+    } catch (e) {
+      console.error("Failed to materialize leaderboard", e);
+    }
+
     return res.status(200).json({ success: true, action: 'approved' });
   }
 

@@ -5,7 +5,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import Login from './pages/Login';
 import PlayerDashboard from './pages/PlayerDashboard';
 import AdminDashboard from './pages/AdminDashboard';
-import Ledger from './pages/Ledger';
+import History from './pages/History';
 import SafetyItems from './pages/SafetyItems';
 import { Analytics } from "@vercel/analytics/react"
 
@@ -17,7 +17,7 @@ function AppRoutes() {
       <Route path="/" element={userData ? <Navigate to={userData.isAdmin ? "/admin" : "/dashboard"} /> : <Login />} />
       <Route path="/dashboard" element={<ProtectedRoute><PlayerDashboard /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute requireAdmin={true}><AdminDashboard /></ProtectedRoute>} />
-      <Route path="/ledger" element={<Ledger />} />
+      <Route path="/history" element={<History />} />
       <Route path="/safety" element={<ProtectedRoute><SafetyItems /></ProtectedRoute>} />
     </Routes>
   );
