@@ -166,6 +166,62 @@ export default async function handler(req, res) {
     }
   }
 
+  // ── POST /api/users?action=purge ─────────────────────────────────────────────
+  // Admin: sets status='dead' for all alive users who do not have an approved kill this round
+  if (req.method === 'POST' && action === 'purge') {
+    try {
+      await authenticateAdmin(req);
+    } catch (err) {
+      return res.status(401).json({ error: err.message });
+    }
+
+    try {
+      const settings = await db.collection('settings').findOne({ _id: 'game' });
+      const roundStartedAt = settings?.roundStartedAt;
+      
+      let killersSet = new Set();
+      if (roundStartedAt) {
+        const approvedKills = await eliminations.find({
+          status: 'approved',
+          decidedAt: { $gte: roundStartedAt }
+        }).toArray();
+        approvedKills.forEach(k => killersSet.add(k.killerEmail));
+      }
+
+      const killersArray = Array.from(killersSet);
+
+      const result = await users.updateMany(
+        { 
+          status: 'alive', 
+          _id: { $nin: killersArray } 
+        },
+        { $set: { status: 'dead' } }
+      );
+
+      return res.status(200).json({ success: true, count: result.modifiedCount });
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+  }
+
+  // ── POST /api/users?action=backup ────────────────────────────────────────────
+  // Admin: backups users collection to users_backup
+  if (req.method === 'POST' && action === 'backup') {
+    try {
+      await authenticateAdmin(req);
+    } catch (err) {
+      return res.status(401).json({ error: err.message });
+    }
+
+    try {
+      await users.aggregate([{ $match: {} }, { $out: 'users_backup' }]).toArray();
+      const count = await users.countDocuments();
+      return res.status(200).json({ success: true, count });
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+  }
+
   // ── GET /api/users ───────────────────────────────────────────────────────────
   // All authenticated users: full roster. Target email hidden from non-admins.
   if (req.method === 'GET') {

@@ -174,6 +174,90 @@ function AddPlayerModal({ currentPlayers, onAdd, onClose, adding, apiFetch }) {
 }
 
 /* ─────────────────────────────────────────────────────────────
+   Mimic Kill Modal
+───────────────────────────────────────────────────────────── */
+function MimicKillModal({ currentPlayers, onSubmit, onClose, loading }) {
+    const alivePlayers = currentPlayers.filter(p => p.status === 'alive');
+    const [killerEmail, setKillerEmail] = useState('');
+    const [victimEmail, setVictimEmail] = useState('');
+
+    const handleSubmit = () => {
+        const killer = alivePlayers.find(p => p.email === killerEmail);
+        const victim = alivePlayers.find(p => p.email === victimEmail);
+        if (!killer || !victim) return;
+        onSubmit(killer, victim);
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-sm w-full p-6 animate-fade-in">
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                        <UserPlus className="w-5 h-5 text-brand-blue" />
+                        <h3 className="font-bold text-slate-900">Mimic Kill</h3>
+                    </div>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+
+                <div className="mb-4">
+                    <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-1.5">Select Killer</label>
+                    <select
+                        value={killerEmail}
+                        onChange={e => {
+                            setKillerEmail(e.target.value);
+                            const k = alivePlayers.find(p => p.email === e.target.value);
+                            if (k && k.targetEmail) {
+                                setVictimEmail(k.targetEmail);
+                            }
+                        }}
+                        className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition"
+                    >
+                        <option value="">-- Choose Killer --</option>
+                        {alivePlayers.map(p => (
+                            <option key={p.email} value={p.email}>{p.firstName} {p.lastName} ({p.email})</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="mb-6">
+                    <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-1.5">Select Victim</label>
+                    <select
+                        value={victimEmail}
+                        onChange={e => setVictimEmail(e.target.value)}
+                        className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition"
+                    >
+                        <option value="">-- Choose Victim --</option>
+                        {alivePlayers.map(p => (
+                            <option key={p.email} value={p.email}>{p.firstName} {p.lastName} ({p.email})</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="flex gap-3">
+                    <button
+                        onClick={onClose}
+                        disabled={loading}
+                        className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={handleSubmit}
+                        disabled={loading || !killerEmail || !victimEmail}
+                        className="flex-1 px-4 py-2.5 bg-brand-blue hover:bg-brand-blue-hover text-white rounded-xl text-sm font-bold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                        {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        Submit
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/* ─────────────────────────────────────────────────────────────
    Main Admin Dashboard
 ───────────────────────────────────────────────────────────── */
 export default function AdminDashboard() {
@@ -199,6 +283,8 @@ export default function AdminDashboard() {
     const [removeLoading, setRemoveLoading] = useState(false);
     const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
     const [addingPlayer, setAddingPlayer] = useState(false);
+    const [showMimicKillModal, setShowMimicKillModal] = useState(false);
+    const [mimicKillLoading, setMimicKillLoading] = useState(false);
 
     // ── Settings & eliminations ──────────────────────────────
     const [isLedgerPublic, setIsLedgerPublic] = useState(false);
@@ -591,6 +677,55 @@ export default function AdminDashboard() {
         }
     };
 
+    const purgeUnsafe = async () => {
+        if (!window.confirm('⚠️ Purge Unsafe Players? This will change the status of all alive players without an approved kill this round to dead. Continue?')) return;
+        try {
+            const res = await apiFetch('/api/users?action=purge', { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Backend failed to purge');
+            alert(`Purged ${data.count} players.`);
+            fetchUsers();
+        } catch (err) {
+            alert('Failed to purge players: ' + err.message);
+        }
+    };
+
+    const backupRegistry = async () => {
+        try {
+            const res = await apiFetch('/api/users?action=backup', { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Backend failed to backup');
+            alert(`Successfully backed up ${data.count} players to the registry backup.`);
+        } catch (err) {
+            alert('Failed to backup registry: ' + err.message);
+        }
+    };
+
+    const handleMimicKill = async (killer, victim) => {
+        setMimicKillLoading(true);
+        try {
+            const res = await apiFetch('/api/eliminations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    killerEmail: killer.email,
+                    killerName: `${killer.firstName} ${killer.lastName}`,
+                    victimEmail: victim.email,
+                    victimName: `${victim.firstName} ${victim.lastName}`
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to submit mimic kill');
+            alert('Mimic kill reported successfully. It is now pending review.');
+            setShowMimicKillModal(false);
+            fetchUsers();
+        } catch (err) {
+            alert('Mimic kill failed: ' + err.message);
+        } finally {
+            setMimicKillLoading(false);
+        }
+    };
+
     const resetRoundClock = async () => {
         if (!window.confirm('Are you sure you want to RESET the round clock? This will flag everyone who hasn\'t gotten a kill starting from NOW. Use this if a new round has begun but you aren\'t randomizing targets.')) return;
         try {
@@ -830,6 +965,14 @@ export default function AdminDashboard() {
                             </button>
 
                             <button
+                                onClick={() => setShowMimicKillModal(true)}
+                                className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-sm font-bold transition-all"
+                            >
+                                <UserPlus className="w-4 h-4" />
+                                Mimic Kill
+                            </button>
+
+                            <button
                                 onClick={reviveAll}
                                 className="flex items-center gap-2 px-4 py-2.5 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded-xl text-sm font-bold transition-all"
                             >
@@ -869,6 +1012,22 @@ export default function AdminDashboard() {
                             >
                                 <Trash2 className="w-4 h-4" />
                                 Remove All
+                            </button>
+
+                            <button
+                                onClick={purgeUnsafe}
+                                className="flex items-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-bold transition-all shadow-sm"
+                            >
+                                <AlertTriangle className="w-4 h-4" />
+                                Purge Unsafe
+                            </button>
+
+                            <button
+                                onClick={backupRegistry}
+                                className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-sm font-bold transition-all"
+                            >
+                                <Save className="w-4 h-4" />
+                                Backup Registry
                             </button>
 
                             <button
@@ -1003,6 +1162,15 @@ export default function AdminDashboard() {
                     onClose={() => setShowAddPlayerModal(false)}
                     adding={addingPlayer}
                     apiFetch={apiFetch}
+                />
+            )}
+
+            {showMimicKillModal && (
+                <MimicKillModal
+                    currentPlayers={users}
+                    onSubmit={handleMimicKill}
+                    onClose={() => setShowMimicKillModal(false)}
+                    loading={mimicKillLoading}
                 />
             )}
 

@@ -22,7 +22,11 @@ export default async function handler(req, res) {
     if (!killerEmail || !victimEmail) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
-    if (killerEmail !== decodedToken.email) {
+
+    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim());
+    const isAdmin = adminEmails.includes(decodedToken.email || decodedToken.uid);
+
+    if (!isAdmin && killerEmail !== decodedToken.email) {
       return res.status(403).json({ error: 'You can only report your own eliminations.' });
     }
 
