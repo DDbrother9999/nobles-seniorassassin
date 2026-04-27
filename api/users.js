@@ -188,17 +188,57 @@ export default async function handler(req, res) {
         approvedKills.forEach(k => killersSet.add(k.killerEmail));
       }
 
-      const killersArray = Array.from(killersSet);
+      const aliveUsers = await users.find({ status: 'alive' }).toArray();
+      const purgedUsers = new Set();
+      const userMap = new Map();
 
-      const result = await users.updateMany(
-        { 
-          status: 'alive', 
-          _id: { $nin: killersArray } 
-        },
-        { $set: { status: 'dead' } }
-      );
+      aliveUsers.forEach(u => {
+        userMap.set(u._id, u);
+        if (!killersSet.has(u._id)) {
+          purgedUsers.add(u._id);
+        }
+      });
 
-      return res.status(200).json({ success: true, count: result.modifiedCount });
+      const ops = [];
+
+      aliveUsers.forEach(u => {
+        if (killersSet.has(u._id)) {
+          let currentTarget = u.targetEmail;
+          let visited = new Set();
+          
+          while (currentTarget && purgedUsers.has(currentTarget) && !visited.has(currentTarget)) {
+            visited.add(currentTarget);
+            const targetUser = userMap.get(currentTarget);
+            if (targetUser) {
+              currentTarget = targetUser.targetEmail;
+            } else {
+              break;
+            }
+          }
+          
+          if (currentTarget !== u.targetEmail) {
+            ops.push({
+              updateOne: {
+                filter: { _id: u._id },
+                update: { $set: { targetEmail: currentTarget } }
+              }
+            });
+          }
+        } else {
+          ops.push({
+            updateOne: {
+              filter: { _id: u._id },
+              update: { $set: { status: 'dead', targetEmail: null } }
+            }
+          });
+        }
+      });
+
+      if (ops.length > 0) {
+        await users.bulkWrite(ops);
+      }
+
+      return res.status(200).json({ success: true, count: purgedUsers.size });
     } catch (error) {
       return res.status(500).json({ error: error.message });
     }
