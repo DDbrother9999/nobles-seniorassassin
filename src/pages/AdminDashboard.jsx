@@ -597,6 +597,21 @@ export default function AdminDashboard() {
         }
     };
 
+    const toggleKillStatus = async (user) => {
+        try {
+            const newKillStatus = !user.hasKillThisRound;
+            const res = await apiFetch('/api/users', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: user._id, updates: { hasKillOverride: newKillStatus } }),
+            });
+            if (!res.ok) throw new Error('Backend failed to update kill status');
+            fetchUsers();
+        } catch (err) {
+            alert('Failed to update kill status: ' + err.message);
+        }
+    };
+
     const reassignTarget = async (user) => {
         const newTarget = prompt("Enter the new target's email address (or leave empty to remove):");
         if (newTarget === null) return;
@@ -1088,17 +1103,17 @@ export default function AdminDashboard() {
                                         </td>
                                         <td className="px-6 py-4">
                                             {u.status === 'alive' && (
-                                                u.hasKillThisRound ? (
-                                                    <div className="flex items-center gap-1.5 text-green-600 font-bold text-xs bg-green-50 px-2 py-1 rounded-lg border border-green-100 w-fit">
-                                                        <CheckCircle className="w-3.5 h-3.5" />
-                                                        SAFE
-                                                    </div>
-                                                ) : (
-                                                    <div className="flex items-center gap-1.5 text-red-600 font-bold text-xs bg-red-50 px-2 py-1 rounded-lg border border-red-100 w-fit" title="No approved kills this round">
-                                                        <AlertTriangle className="w-3.5 h-3.5" />
-                                                        MISSING
-                                                    </div>
-                                                )
+                                                <button
+                                                    onClick={() => toggleKillStatus(u)}
+                                                    className={`flex items-center gap-1.5 font-bold text-xs px-2 py-1 rounded-lg border w-fit transition-opacity hover:opacity-80 ${u.hasKillThisRound ? 'text-green-600 bg-green-50 border-green-100' : 'text-red-600 bg-red-50 border-red-100'}`}
+                                                    title="Click to manually override kill status"
+                                                >
+                                                    {u.hasKillThisRound ? (
+                                                        <><CheckCircle className="w-3.5 h-3.5" /> SAFE</>
+                                                    ) : (
+                                                        <><AlertTriangle className="w-3.5 h-3.5" /> MISSING</>
+                                                    )}
+                                                </button>
                                             )}
                                             {u.status !== 'alive' && <span className="text-slate-300">—</span>}
                                         </td>

@@ -29,6 +29,11 @@ export default async function handler(req, res) {
         { $set: updates },
         { upsert: true }
       );
+
+      if (updates.roundStartedAt) {
+        await db.collection('users').updateMany({}, { $unset: { hasKillOverride: "" } });
+      }
+
       return res.status(200).json({ success: true });
     } catch (error) {
       return res.status(500).json({ error: error.message });

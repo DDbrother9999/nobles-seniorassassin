@@ -113,7 +113,10 @@ export default async function handler(req, res) {
       const ops = shuffled.map((u, i) => ({
         updateOne: {
           filter: { _id: u._id },
-          update: { $set: { targetEmail: shuffled[(i + 1) % shuffled.length]._id } },
+          update: { 
+            $set: { targetEmail: shuffled[(i + 1) % shuffled.length]._id },
+            $unset: { hasKillOverride: "" }
+          },
         },
       }));
 
@@ -194,7 +197,15 @@ export default async function handler(req, res) {
 
       aliveUsers.forEach(u => {
         userMap.set(u._id, u);
-        if (!killersSet.has(u._id)) {
+        let isSafe = killersSet.has(u._id);
+        if (u.hasKillOverride !== undefined && u.hasKillOverride !== null) {
+          isSafe = u.hasKillOverride;
+        }
+
+        if (isSafe) {
+          killersSet.add(u._id);
+        } else {
+          killersSet.delete(u._id);
           purgedUsers.add(u._id);
         }
       });
@@ -285,7 +296,17 @@ export default async function handler(req, res) {
 
         const killersSet = new Set(approvedKills.map(k => k.killerEmail));
         list.forEach(u => {
-          u.hasKillThisRound = killersSet.has(u._id);
+          if (u.hasKillOverride !== undefined && u.hasKillOverride !== null) {
+            u.hasKillThisRound = u.hasKillOverride;
+          } else {
+            u.hasKillThisRound = killersSet.has(u._id);
+          }
+        });
+      } else {
+        list.forEach(u => {
+          if (u.hasKillOverride !== undefined && u.hasKillOverride !== null) {
+            u.hasKillThisRound = u.hasKillOverride;
+          }
         });
       }
 
