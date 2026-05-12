@@ -258,6 +258,76 @@ function MimicKillModal({ currentPlayers, onSubmit, onClose, loading }) {
 }
 
 /* ─────────────────────────────────────────────────────────────
+   Reassign Target Modal
+───────────────────────────────────────────────────────────── */
+function ReassignModal({ user, currentPlayers, onSubmit, onClose, loading }) {
+    const [targetEmail, setTargetEmail] = useState('');
+
+    useEffect(() => {
+        if (user) setTargetEmail(user.targetEmail || '');
+    }, [user]);
+
+    if (!user) return null;
+
+    const handleSubmit = () => {
+        onSubmit(user, targetEmail === '' ? null : targetEmail);
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-sm w-full p-6 animate-fade-in">
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                        <Shuffle className="w-5 h-5 text-brand-blue" />
+                        <h3 className="font-bold text-slate-900">Reassign Target</h3>
+                    </div>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+
+                <div className="mb-2">
+                    <p className="text-sm font-semibold text-slate-900">Player: {user.firstName} {user.lastName}</p>
+                </div>
+
+                <div className="mb-6">
+                    <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-1.5">Select New Target</label>
+                    <select
+                        value={targetEmail}
+                        onChange={e => setTargetEmail(e.target.value)}
+                        className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition"
+                    >
+                        <option value="">-- Unassigned --</option>
+                        {currentPlayers.map(p => (
+                            <option key={p.email} value={p.email}>{p.firstName} {p.lastName} ({p.email})</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="flex gap-3">
+                    <button
+                        onClick={onClose}
+                        disabled={loading}
+                        className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={handleSubmit}
+                        disabled={loading}
+                        className="flex-1 px-4 py-2.5 bg-brand-blue hover:bg-brand-blue-hover text-white rounded-xl text-sm font-bold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                        {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+
+/* ─────────────────────────────────────────────────────────────
    Main Admin Dashboard
 ───────────────────────────────────────────────────────────── */
 export default function AdminDashboard() {
@@ -285,6 +355,8 @@ export default function AdminDashboard() {
     const [addingPlayer, setAddingPlayer] = useState(false);
     const [showMimicKillModal, setShowMimicKillModal] = useState(false);
     const [mimicKillLoading, setMimicKillLoading] = useState(false);
+    const [reassignUser, setReassignUser] = useState(null);
+    const [reassignLoading, setReassignLoading] = useState(false);
 
     // ── Settings & eliminations ──────────────────────────────
     const [isLedgerPublic, setIsLedgerPublic] = useState(false);
@@ -612,20 +684,21 @@ export default function AdminDashboard() {
         }
     };
 
-    const reassignTarget = async (user) => {
-        const newTarget = prompt("Enter the new target's email address (or leave empty to remove):");
-        if (newTarget === null) return;
+    const handleReassignTarget = async (user, newTargetEmail) => {
+        setReassignLoading(true);
         try {
-            const targetEmail = newTarget.trim() === '' ? null : newTarget.trim();
             const res = await apiFetch('/api/users', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: user._id, updates: { targetEmail } }),
+                body: JSON.stringify({ userId: user._id, updates: { targetEmail: newTargetEmail } }),
             });
             if (!res.ok) throw new Error('Backend failed to assign target');
-            fetchUsers();
+            await fetchUsers();
+            setReassignUser(null);
         } catch (err) {
             alert('Failed to assign target');
+        } finally {
+            setReassignLoading(false);
         }
     };
 
@@ -1129,7 +1202,7 @@ export default function AdminDashboard() {
                                         </td>
                                         <td className="px-6 py-4">
                                             <button
-                                                onClick={() => reassignTarget(u)}
+                                                onClick={() => setReassignUser(u)}
                                                 className="text-brand-blue hover:text-brand-blue-hover text-xs font-bold uppercase tracking-wider transition-colors"
                                             >
                                                 Reassign
@@ -1188,6 +1261,14 @@ export default function AdminDashboard() {
                     loading={mimicKillLoading}
                 />
             )}
+
+            <ReassignModal
+                user={reassignUser}
+                currentPlayers={users}
+                onSubmit={handleReassignTarget}
+                onClose={() => setReassignUser(null)}
+                loading={reassignLoading}
+            />
 
             {showSafetyItemModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">

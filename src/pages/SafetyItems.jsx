@@ -48,8 +48,8 @@ export default function Rules() {
   const rounds = [
     { round: 'Round 1', date: 'April 21 @ 8:20 AM' },
     { round: 'Round 2', date: 'April 28 @ 8:20 AM' },
-    { round: 'Round 3', date: 'May 4 @ 8:20 AM' },
-    { round: 'Round 4', date: 'May 11 @ 8:20 AM' },
+    { round: 'Round 3', date: 'May 5 @ 8:20 AM' },
+    { round: 'Round 4', date: 'May 12 @ 8:20 AM' },
   ];
 
   return (
